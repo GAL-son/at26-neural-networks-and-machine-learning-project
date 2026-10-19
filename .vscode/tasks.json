@@ -6,12 +6,40 @@
             "type": "shell",
             "command": "cmake",
             "args": [
-                "--preset",
-                "default",
                 "-S",
-                "renderer"
+                "renderer",
+                "-B",
+                "renderer/build",
+                "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
             ],
-            "problemMatcher": ["$gcc"]
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "windows": {
+                "args": [
+                    "-S",
+                    "renderer",
+                    "-B",
+                    "renderer/build",
+                    "-G",
+                    "Visual Studio 17 2022",
+                    "-A",
+                    "x64",
+                    "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                ]
+            },
+            "linux": {
+                "args": [
+                    "-S",
+                    "renderer",
+                    "-B",
+                    "renderer/build",
+                    "-G",
+                    "Ninja",
+                    "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                ]
+            },
+            "problemMatcher": []
         },
         {
             "label": "Build Renderer (CMake)",
@@ -19,9 +47,25 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "renderer/build"
+                "renderer/build",
+                "--config",
+                "Debug"
             ],
-            "problemMatcher": ["$gcc"]
+            "windows": {
+                "problemMatcher": [
+                    "$msCompile"
+                ]
+            },
+            "linux": {
+                "problemMatcher": [
+                    "$gcc"
+                ]
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Builds the renderer project across platforms"
         }
     ]
-}
+} 
