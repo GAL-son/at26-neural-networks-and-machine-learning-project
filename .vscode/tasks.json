@@ -6,15 +6,12 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "--preset",
+                "default",
                 "-S",
-                "renderer",
-                "-B",
-                "renderer/build",
-                "-DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                "renderer"
             ],
-            "problemMatcher": [
-                "$gcc"
-            ]
+            "problemMatcher": ["$gcc"]
         },
         {
             "label": "Build Renderer (CMake)",
@@ -24,9 +21,7 @@
                 "--build",
                 "renderer/build"
             ],
-            "problemMatcher": [
-                "$gcc"
-            ]
+            "problemMatcher": ["$gcc"]
         }
     ]
 }
