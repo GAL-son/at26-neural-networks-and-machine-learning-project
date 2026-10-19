@@ -4,6 +4,11 @@
   "dependencies": [
     "glfw3",
     "glm",
-    "vulkan-headers"
+    "vulkan-headers",
+    "tinyobjloader",
+    "nlohmann-json",
+    "stb",
+    "vulkan-memory-allocator",
+    "vk-bootstrap"
   ]
 }
