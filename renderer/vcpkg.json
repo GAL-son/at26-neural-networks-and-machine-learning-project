@@ -1,14 +1,21 @@
 {
-  "name": "my-vulkan-project",
-  "version": "0.1.0",
+  "name": "ai-antialiaser-renderer",
+  "version-string": "0.1.0",
   "dependencies": [
-    "glfw3",
-    "glm",
+    "vulkan",
+    "vulkan-memory-allocator",
+    "vk-bootstrap",
     "vulkan-headers",
+    "glfw3",
+    "glm",  
     "tinyobjloader",
     "nlohmann-json",
     "stb",
-    "vulkan-memory-allocator",
-    "vk-bootstrap"
+    {
+      "name": "imgui",
+      "features": ["glfw-binding", "vulkan-binding"]
+    },
+    "openexr",
+    "nlohmann-json"
   ]
 }
