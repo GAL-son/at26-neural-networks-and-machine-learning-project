@@ -2,6 +2,7 @@
 
 #include "Window.hpp"
 #include "../Renderer/VulkanContext.hpp"
+#include "../Renderer/CompositePass.hpp"
 #include "../UI/UIManager.hpp"
 #include <chrono>
 
@@ -14,14 +15,8 @@ public:
     void run();
 
 private:
-    void initImGui();
-    void renderImGuiOverlay();
-    void updateStats();
-    void initOffscreenBuffers();
-    void cleanupOffscreenBuffers();
-    void initCompositePipeline();
-    VkShaderModule Engine::createShaderModule(const std::vector<char>& code);
-    
+    void runHeadless();
+    void runWindowed();
 
     bool m_headless;
     Window m_window;
@@ -37,18 +32,6 @@ private:
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
     VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
 
-    struct OffscreenBuffer
-    {
-        VkImage image = VK_NULL_HANDLE;
-        VmaAllocation allocation = VK_NULL_HANDLE;
-        VkImageView imageView = VK_NULL_HANDLE;
-        VkSampler sampler = VK_NULL_HANDLE;
-    };
-    OffscreenBuffer m_buffers[4];
-
-    VkDescriptorSetLayout m_compositeDescriptorLayout = VK_NULL_HANDLE;
-    VkDescriptorSet m_compositeDescriptorSet = VK_NULL_HANDLE;
-    VkPipelineLayout m_compositePipelineLayout = VK_NULL_HANDLE;
-    VkPipeline m_compositePipeline = VK_NULL_HANDLE;
-    VkDescriptorPool m_compositePool = VK_NULL_HANDLE;
+    // The composite pass module handles all offscreen buffers & background rendering
+    CompositePass m_compositePass;
 };

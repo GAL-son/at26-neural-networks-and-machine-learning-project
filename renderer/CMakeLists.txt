@@ -11,14 +11,10 @@ find_package(OpenEXR CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+
 set(TARGET_NAME AIAARendererApp)
-add_executable(${TARGET_NAME} 
-    src/main.cpp
-    src/Core/Engine.cpp
-    src/Core/Window.cpp
-    src/Renderer/VulkanContext.cpp
-    src/UI/UIManager.cpp
-)
+add_executable(${TARGET_NAME} ${SOURCES})
 
 target_include_directories(${TARGET_NAME} PRIVATE
     src
