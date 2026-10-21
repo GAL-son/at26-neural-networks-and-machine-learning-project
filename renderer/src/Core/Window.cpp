@@ -31,7 +31,7 @@ bool Window::shouldClose() const {
     return glfwWindowShouldClose(m_window);
 }
 
-void Window::poolEvents() const {
+void Window::pollEvents() const {
     if(!m_headless) {
         glfwPollEvents();
     }

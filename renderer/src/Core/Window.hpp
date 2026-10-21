@@ -11,7 +11,7 @@ public:
     ~Window();
 
     bool shouldClose() const;
-    void poolEvents() const;
+    void pollEvents() const;
 
     GLFWwindow *getGLFWWindow() const { return m_window; }
 

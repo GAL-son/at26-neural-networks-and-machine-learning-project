@@ -14,6 +14,7 @@ public:
 
 private:
     void initImGui();
+    void renderImGuiOverlay();
     void updateStats();
 
     bool m_headless;
@@ -24,4 +25,9 @@ private:
     float m_frameTimeMs = 0.0f;
     float m_passTimeMs = 0.0f;
     std::chrono::high_resolution_clock::time_point m_lastTime;
+
+    // Command pool for UI / presentation
+    VkCommandPool m_commandPool = VK_NULL_HANDLE;
+    VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
+    
 };
