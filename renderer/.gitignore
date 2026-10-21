@@ -1,3 +1,5 @@
 build/*
 !build/.gitkeep
 
+resources/scenes/*
+!resources/scenes/.gitkeep
