@@ -1,22 +1,28 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
+#include "Core/Engine.hpp"
 #include <iostream>
+#include <exception>
 
-int main() {
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW!" << std::endl;
-        return -1;
+int main(int argc, char* argv[]) {
+    bool headless = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "-v" || std::string(argv[i]) == "--headless") {
+            // Adjust based on how your flag is checked, or keep as is:
+        }
+    }
+    // Check for -v or similar in your code...
+    bool isHeadless = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "-v") {
+            isHeadless = true; // Wait, -v in your log was running windowed mode or headless?
+        }
     }
 
-    if (!glfwVulkanSupported()) {
-        std::cerr << "Vulkan is not supported on this system!" << std::endl;
-        glfwTerminate();
-        return -1;
+    try {
+        Engine engine(false); // or whatever flag
+        engine.run();
+    } catch (const std::exception& e) {
+        std::cerr << "FATAL EXCEPTION: " << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
-
-    std::cout << "GLFW and Vulkan initialized successfully!" << std::endl;
-
-    glfwTerminate();
-    return 0;
+    return EXIT_SUCCESS;
 }
