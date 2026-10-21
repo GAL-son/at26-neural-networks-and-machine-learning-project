@@ -17,6 +17,7 @@ add_executable(${TARGET_NAME}
     src/Core/Engine.cpp
     src/Core/Window.cpp
     src/Renderer/VulkanContext.cpp
+    src/UI/UIManager.cpp
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
@@ -30,4 +31,11 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     OpenEXR::OpenEXR
     nlohmann_json::nlohmann_json
     GPUOpen::VulkanMemoryAllocator
+)
+
+add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/target"
+        "$<TARGET_FILE_DIR:${TARGET_NAME}>/shaders"
+    COMMENT "Copying compiled shaders to build destination..."
 )
