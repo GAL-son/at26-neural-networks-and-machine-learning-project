@@ -5,9 +5,9 @@
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
-
-#define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
+
+#include<glm/glm.hpp>
 
 namespace Utils
 {
@@ -67,42 +67,64 @@ namespace Utils
         }
 
         // Loop over shapes and flatten into a single mesh or collection
+        // Loop over shapes and flatten into a single mesh or collection
         for (const auto &shape : shapes)
         {
-            for (const auto &index : shape.mesh.indices)
+            size_t index_offset = 0;
+            for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
             {
-                // Position
-                outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 0]);
-                outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 1]);
-                outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 2]);
+                int fv = shape.mesh.num_face_vertices[f];
 
-                // Normal
-                if (index.normal_index >= 0)
-                {
-                    outData.normals.push_back(attrib.normals[3 * index.normal_index + 0]);
-                    outData.normals.push_back(attrib.normals[3 * index.normal_index + 1]);
-                    outData.normals.push_back(attrib.normals[3 * index.normal_index + 2]);
-                }
-                else
-                {
-                    outData.normals.push_back(0.0f);
-                    outData.normals.push_back(1.0f);
-                    outData.normals.push_back(0.0f);
-                }
+                // Collect the 3 vertices of the triangle to compute a face normal if needed
+                tinyobj::index_t idx0 = shape.mesh.indices[index_offset + 0];
+                tinyobj::index_t idx1 = shape.mesh.indices[index_offset + 1];
+                tinyobj::index_t idx2 = shape.mesh.indices[index_offset + 2];
 
-                // TexCoord (Flip V for Vulkan)
-                if (index.texcoord_index >= 0)
-                {
-                    outData.texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 0]);
-                    outData.texCoords.push_back(1.0f - attrib.texcoords[2 * index.texcoord_index + 1]);
-                }
-                else
-                {
-                    outData.texCoords.push_back(0.0f);
-                    outData.texCoords.push_back(0.0f);
-                }
+                glm::vec3 v0(attrib.vertices[3 * idx0.vertex_index + 0], attrib.vertices[3 * idx0.vertex_index + 1], attrib.vertices[3 * idx0.vertex_index + 2]);
+                glm::vec3 v1(attrib.vertices[3 * idx1.vertex_index + 0], attrib.vertices[3 * idx1.vertex_index + 1], attrib.vertices[3 * idx1.vertex_index + 2]);
+                glm::vec3 v2(attrib.vertices[3 * idx2.vertex_index + 0], attrib.vertices[3 * idx2.vertex_index + 1], attrib.vertices[3 * idx2.vertex_index + 2]);
 
-                outData.indices.push_back(static_cast<uint32_t>(outData.indices.size()));
+                // Fallback flat normal calculated from triangle geometry
+                glm::vec3 faceNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+
+                for (int v = 0; v < fv; v++)
+                {
+                    tinyobj::index_t index = shape.mesh.indices[index_offset + v];
+
+                    // Position
+                    outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 0]);
+                    outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 1]);
+                    outData.positions.push_back(attrib.vertices[3 * index.vertex_index + 2]);
+
+                    // Normal (Use file normal if available, otherwise use computed face normal)
+                    if (index.normal_index >= 0)
+                    {
+                        outData.normals.push_back(attrib.normals[3 * index.normal_index + 0]);
+                        outData.normals.push_back(attrib.normals[3 * index.normal_index + 1]);
+                        outData.normals.push_back(attrib.normals[3 * index.normal_index + 2]);
+                    }
+                    else
+                    {
+                        outData.normals.push_back(faceNormal.x);
+                        outData.normals.push_back(faceNormal.y);
+                        outData.normals.push_back(faceNormal.z);
+                    }
+
+                    // TexCoord (Flip V for Vulkan)
+                    if (index.texcoord_index >= 0)
+                    {
+                        outData.texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 0]);
+                        outData.texCoords.push_back(1.0f - attrib.texcoords[2 * index.texcoord_index + 1]);
+                    }
+                    else
+                    {
+                        outData.texCoords.push_back(0.0f);
+                        outData.texCoords.push_back(0.0f);
+                    }
+
+                    outData.indices.push_back(static_cast<uint32_t>(outData.indices.size()));
+                }
+                index_offset += fv;
             }
         }
 

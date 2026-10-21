@@ -1,10 +1,14 @@
 #pragma once
 
 #include "Window.hpp"
+
+#include <chrono>
+
 #include "../Renderer/VulkanContext.hpp"
 #include "../Renderer/CompositePass.hpp"
+#include "../Renderer/GeometryPass.hpp"
 #include "../UI/UIManager.hpp"
-#include <chrono>
+#include "../Scene/Scene.hpp"
 
 class Engine
 {
@@ -17,6 +21,8 @@ public:
 private:
     void runHeadless();
     void runWindowed();
+
+    std::unique_ptr<Scene> m_scene;
 
     bool m_headless;
     Window m_window;
@@ -34,4 +40,5 @@ private:
 
     // The composite pass module handles all offscreen buffers & background rendering
     CompositePass m_compositePass;
+    GeometryPass m_geometryPass;
 };

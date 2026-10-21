@@ -230,12 +230,13 @@ void CompositePass::cleanup()
 void CompositePass::recordBufferClears(VkCommandBuffer commandBuffer)
 {
     VkClearColorValue clearColors[4] = {
-        {{1.0f, 0.0f, 0.0f, 1.0f}}, // Red (G-Buffer)
+        {{0.0f, 0.0f, 0.0f, 1.0f}}, // Buffer 0: Will be overwritten by GeometryPass
         {{0.0f, 1.0f, 0.0f, 1.0f}}, // Green (Depth/Normals)
         {{0.0f, 0.0f, 1.0f, 1.0f}}, // Blue (Motion Vectors)
         {{1.0f, 1.0f, 0.0f, 1.0f}}  // Yellow (SSAA Ground Truth)
     };
 
+    // Start at i = 0 so ALL buffers transition from UNDEFINED -> SHADER_READ_ONLY_OPTIMAL safely
     for (int i = 0; i < 4; i++)
     {
         // Barrier: UNDEFINED -> TRANSFER_DST

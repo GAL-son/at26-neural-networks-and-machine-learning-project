@@ -6,15 +6,33 @@ Engine::Engine(bool headless)
     : m_headless(headless),
       m_window(1280, 720, "AI Antialiaser Renderer", headless),
       m_vulkanContext(m_window),
-      m_compositePass(m_vulkanContext)
+      m_compositePass(m_vulkanContext),
+      m_geometryPass(m_vulkanContext)
 {
     if (!m_headless)
     {
         m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
+        m_geometryPass.init();
         m_compositePass.init();
+
+        // --- 1. INITIALIZE SCENE & LOAD MCGUIRE BEDROOM MODEL ---
+        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+        m_scene = std::make_unique<Scene>(
+            m_vulkanContext.getAllocator(),
+            static_cast<float>(extent.width),
+            static_cast<float>(extent.height));
+
+        try
+        {
+            m_scene->loadModel("scenes/bedroom/iscv2.obj");
+            std::cout << "Successfully loaded and converted McGuire bedroom scene!\n";
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Failed to load model: " << e.what() << std::endl;
+        }
     }
 }
-
 Engine::~Engine()
 {
     if (!m_headless)
@@ -141,7 +159,24 @@ void Engine::runWindowed()
         // 1. Clear offscreen buffers
         m_compositePass.recordBufferClears(commandBuffer);
 
-        // 2. Transition swapchain image to color attachment
+        // 2. Render 3D geometry into Buffer 0 via GeometryPass
+        if (m_scene)
+        {
+            m_geometryPass.render(
+                commandBuffer, *m_scene,
+                m_compositePass.getBuffer(0).imageView,
+                m_compositePass.getBuffer(0).image,
+                m_vulkanContext.getSwapchainExtent());
+
+            // Render Normals into Buffer 1
+            m_geometryPass.renderNormals(
+                commandBuffer, *m_scene,
+                m_compositePass.getBuffer(1).imageView,
+                m_compositePass.getBuffer(1).image,
+                m_vulkanContext.getSwapchainExtent());
+        }
+
+        // 3. Transition swapchain image for UI & Composite drawing
         VkImageMemoryBarrier barrierToColor{};
         barrierToColor.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrierToColor.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;

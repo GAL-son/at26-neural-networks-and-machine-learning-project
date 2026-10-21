@@ -29,9 +29,18 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     GPUOpen::VulkanMemoryAllocator
 )
 
+# Copy compiled shaders
 add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/target"
         "$<TARGET_FILE_DIR:${TARGET_NAME}>/shaders"
     COMMENT "Copying compiled shaders to build destination..."
+)
+
+# Copy scenes
+add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/scenes"
+        "$<TARGET_FILE_DIR:${TARGET_NAME}>/scenes"
+    COMMENT "Copying scenes to build destination..."
 )

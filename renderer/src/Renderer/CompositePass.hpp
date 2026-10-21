@@ -27,6 +27,8 @@ public:
     // Call this INSIDE vkCmdBeginRendering
     void drawComposite(VkCommandBuffer commandBuffer);
 
+    const OffscreenBuffer& getBuffer(int index) const { return m_buffers[index]; }
+
 private:
     VkShaderModule createShaderModule(const std::vector<char> &code);
 
