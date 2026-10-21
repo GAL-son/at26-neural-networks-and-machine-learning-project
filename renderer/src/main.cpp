@@ -1,22 +1,24 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
+#include "Core/Engine.hpp"
 #include <iostream>
+#include <string>
 
-int main() {
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW!" << std::endl;
+int main(int argc, char* argv[]) {
+    bool headless = true; 
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--visualize" || arg == "-v") {
+            headless = false;
+        }
+    }
+
+    try {
+        Engine engine(headless);
+        engine.run();
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal Error: " << e.what() << "\n";
         return -1;
     }
 
-    if (!glfwVulkanSupported()) {
-        std::cerr << "Vulkan is not supported on this system!" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    std::cout << "GLFW and Vulkan initialized successfully!" << std::endl;
-
-    glfwTerminate();
     return 0;
 }

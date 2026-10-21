@@ -19,11 +19,11 @@ add_executable(${TARGET_NAME}
     src/Renderer/VulkanContext.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(${TARGET_NAME} PRIVATE
     src
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(${TARGET_NAME} PRIVATE
     Vulkan::Vulkan
     glfw
     imgui::imgui
