@@ -36,6 +36,7 @@
                     "renderer/build",
                     "-G",
                     "Ninja",
+                    "-DCMAKE_MAKE_PROGRAM=/usr/bin/ninja",
                     "-DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
                 ]
             },
