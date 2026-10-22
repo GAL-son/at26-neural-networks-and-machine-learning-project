@@ -56,24 +56,30 @@ VulkanContext::~VulkanContext()
 void VulkanContext::createInstance(const Window &window)
 {
     // Check validation layer support if enabled
-    if (m_enableValidationLayers) {
+    if (m_enableValidationLayers)
+    {
         uint32_t layerCount;
         vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
         std::vector<VkLayerProperties> availableLayers(layerCount);
         vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
         bool layerFound = false;
-        for (const auto& layerProperties : availableLayers) {
-            if (strcmp("VK_LAYER_KHRONOS_validation", layerProperties.layerName) == 0) {
+        for (const auto &layerProperties : availableLayers)
+        {
+            if (strcmp("VK_LAYER_KHRONOS_validation", layerProperties.layerName) == 0)
+            {
                 layerFound = true;
                 break;
             }
         }
-        if (!layerFound) {
-            std::cerr << "Validation layers requested, but not available!\n";
+
+        if (!layerFound)
+        {
+            std::cerr << "Validation layers requested, but not available! Disabling them.\n";
+            m_enableValidationLayers = false; // <-- FIX: Turn it off so it doesn't crash
         }
     }
-
+    
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "AI ANTIALIASER RENDERER";
@@ -99,7 +105,8 @@ void VulkanContext::createInstance(const Window &window)
     }
 
     // Add debug messenger extension if validation is enabled
-    if (m_enableValidationLayers) {
+    if (m_enableValidationLayers)
+    {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
@@ -109,11 +116,14 @@ void VulkanContext::createInstance(const Window &window)
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
 
-    const char* validationLayer = "VK_LAYER_KHRONOS_validation";
-    if (m_enableValidationLayers) {
+    const char *validationLayer = "VK_LAYER_KHRONOS_validation";
+    if (m_enableValidationLayers)
+    {
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = &validationLayer;
-    } else {
+    }
+    else
+    {
         createInfo.enabledLayerCount = 0;
     }
 
@@ -207,12 +217,14 @@ void VulkanContext::createLogicalDevice()
     }
 
     vkGetDeviceQueue(m_device, m_graphicsQueueFamily, 0, &m_graphicsQueue);
-    if (!m_window.isHeadless()) {
+    if (!m_window.isHeadless())
+    {
         vkGetDeviceQueue(m_device, m_presentQueueFamily, 0, &m_presentQueue);
     }
 }
 
-void VulkanContext::createSwapchain(int width, int height) {
+void VulkanContext::createSwapchain(int width, int height)
+{
     VkSurfaceCapabilitiesKHR capabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &capabilities);
 
@@ -220,7 +232,8 @@ void VulkanContext::createSwapchain(int width, int height) {
     VkExtent2D extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
     uint32_t imageCount = capabilities.minImageCount + 1;
-    if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
+    if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
+    {
         imageCount = capabilities.maxImageCount;
     }
 
@@ -239,7 +252,8 @@ void VulkanContext::createSwapchain(int width, int height) {
     createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     createInfo.clipped = VK_TRUE;
 
-    if (vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain) != VK_SUCCESS)
+    {
         throw std::runtime_error("Failed to create swapchain!");
     }
 
@@ -250,12 +264,14 @@ void VulkanContext::createSwapchain(int width, int height) {
     m_swapchainExtent = extent;
 }
 
-void VulkanContext::createImageViews() {
+void VulkanContext::createImageViews()
+{
     m_swapchainImageViews.resize(m_swapchainImages.size());
-    for (size_t i = 0; i < m_swapchainImages.size(); i++) {
+    for (size_t i = 0; i < m_swapchainImages.size(); i++)
+    {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = m_swapchainImages[i]; 
+        createInfo.image = m_swapchainImages[i];
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // standard 2D view
         createInfo.format = m_swapchainImageFormat;
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -268,7 +284,8 @@ void VulkanContext::createImageViews() {
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]) != VK_SUCCESS) {
+        if (vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]) != VK_SUCCESS)
+        {
             throw std::runtime_error("Failed to create image views!");
         }
     }

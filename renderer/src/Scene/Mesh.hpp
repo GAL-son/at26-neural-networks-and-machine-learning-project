@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <array>
+#include <memory>
 
 #include "../Utils/FileUtils.hpp"
 
