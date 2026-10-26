@@ -3,22 +3,33 @@
 #include "Mesh.hpp"
 #include "Camera.hpp"
 #include <vector>
-#include <memory>
 #include <string>
 
-class Scene {
-public:
-    Scene(VmaAllocator allocator, float aspectWidth, float aspectHeight);
-    ~Scene() = default;
+namespace Engine::Scene
+{
 
-    void loadModel(const std::string& filepath);
-    void render(VkCommandBuffer commandBuffer) const;
+    struct RenderableEntity
+    {
+        Mesh meshData;
+        std::vector<Material> materials;
+        glm::mat4 transform{1.0f};
+    };
 
-    Camera& getCamera() { return m_camera; }
-    const Camera& getCamera() const { return m_camera; }
+    class Scene
+    {
+    public:
+        Scene(float aspectWidth, float aspectHeight);
+        ~Scene() = default;
 
-private:
-    VmaAllocator m_allocator;
-    Camera m_camera;
-    std::vector<std::unique_ptr<Mesh>> m_meshes;
-};
+        void loadModel(const std::string &filepath);
+
+        const std::vector<RenderableEntity> &getEntities() const { return m_entities; }
+        Camera &getCamera() { return m_camera; }
+        const Camera &getCamera() const { return m_camera; }
+
+    private:
+        Camera m_camera;
+        std::vector<RenderableEntity> m_entities;
+    };
+
+} // namespace Engine::Scene

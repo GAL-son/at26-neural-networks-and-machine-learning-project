@@ -30,7 +30,6 @@ VulkanContext::VulkanContext(const Window &window) : m_window(window)
 
 VulkanContext::~VulkanContext()
 {
-
     if (m_device)
     {
         vkDeviceWaitIdle(m_device);
@@ -43,14 +42,25 @@ VulkanContext::~VulkanContext()
             vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
         }
     }
+
     if (m_allocator)
+    {
         vmaDestroyAllocator(m_allocator);
+    }
+
     if (m_device)
+    {
         vkDestroyDevice(m_device, nullptr);
+    }
+
     if (m_surface)
+    {
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+    }
     if (m_instance)
+    {
         vkDestroyInstance(m_instance, nullptr);
+    }
 }
 
 void VulkanContext::createInstance(const Window &window)
@@ -79,7 +89,7 @@ void VulkanContext::createInstance(const Window &window)
             m_enableValidationLayers = false; // <-- FIX: Turn it off so it doesn't crash
         }
     }
-    
+
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "AI ANTIALIASER RENDERER";
@@ -168,7 +178,6 @@ void VulkanContext::createLogicalDevice()
     {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            m_graphicsQueueFamily = i;
             m_graphicsQueueFamily = i;
         }
         if (!m_window.isHeadless())
@@ -262,6 +271,28 @@ void VulkanContext::createSwapchain(int width, int height)
     vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, m_swapchainImages.data());
     m_swapchainImageFormat = surfaceFormat.format;
     m_swapchainExtent = extent;
+}
+
+void VulkanContext::recreateSwapchain(uint32_t width, uint32_t height)
+{
+    if (width == 0 || height == 0) return;
+
+    vkDeviceWaitIdle(m_device);
+
+    for (auto imageView : m_swapchainImageViews)
+    {
+        vkDestroyImageView(m_device, imageView, nullptr);
+    }
+    m_swapchainImageViews.clear();
+
+    if (m_swapchain)
+    {
+        vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+        m_swapchain = VK_NULL_HANDLE;
+    }
+
+    createSwapchain(width, height);
+    createImageViews();
 }
 
 void VulkanContext::createImageViews()

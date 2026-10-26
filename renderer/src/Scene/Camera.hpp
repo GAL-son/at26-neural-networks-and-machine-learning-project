@@ -7,26 +7,29 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-class Camera
+namespace Engine::Scene
 {
-public:
-    Camera(float aspectWidth, float aspectHeight);
+    class Camera
+    {
+    public:
+        Camera(float aspectWidth, float aspectHeight);
 
-    void setPosition(const glm::vec3 &position);
-    void setOrientation(const glm::quat &orientation);
+        void setPosition(const glm::vec3 &position);
+        void setOrientation(const glm::quat &orientation);
 
-    void setRotationEuler(float pitchDeg, float yawDeg, float rollDeg);
+        void setRotationEuler(float pitchDeg, float yawDeg, float rollDeg);
 
-    glm::mat4 getViewMatrix() const;
-    glm::mat4 getProjectionMatrix() const;
+        glm::mat4 getViewMatrix() const;
+        glm::mat4 getProjectionMatrix() const;
 
-    glm::vec3 getPosition() const { return m_position; }
-    glm::quat getOrientation() const { return m_orientation; }
+        glm::vec3 getPosition() const { return m_position; }
+        glm::quat getOrientation() const { return m_orientation; }
 
-private:
-    glm::vec3 m_position{0.0f, 0.0f, 0.0f};
-    glm::quat m_orientation{1.0f, 0.0f, 0.0f, 0.0f};
+    private:
+        glm::vec3 m_position{0.0f, 0.0f, 0.0f};
+        glm::quat m_orientation{1.0f, 0.0f, 0.0f, 0.0f};
 
-    float m_aspectRatio;
-    float m_fov = 60;
-};
+        float m_aspectRatio;
+        float m_fov = 60;
+    };
+} // Engine::Scene
