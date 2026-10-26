@@ -161,17 +161,17 @@ namespace Engine::Renderer
         if (!scene)
             return;
 
-        m_geometryPass.render(
-            m_commandBuffer, *scene,
-            m_compositePass.getBuffer(0).imageView,
-            m_compositePass.getBuffer(0).image,
-            m_vulkanContext.getSwapchainExtent());
+    //     m_geometryPass.render(
+    //         m_commandBuffer, *scene,
+    //         m_compositePass.getBuffer(0).imageView,
+    //         m_compositePass.getBuffer(0).image,
+    //         m_vulkanContext.getSwapchainExtent());
 
-        m_geometryPass.renderNormals(
-            m_commandBuffer, *scene,
-            m_compositePass.getBuffer(1).imageView,
-            m_compositePass.getBuffer(1).image,
-            m_vulkanContext.getSwapchainExtent());
+    //     m_geometryPass.renderNormals(
+    //         m_commandBuffer, *scene,
+    //         m_compositePass.getBuffer(1).imageView,
+    //         m_compositePass.getBuffer(1).image,
+    //         m_vulkanContext.getSwapchainExtent());
     }
 
     void VulkanRenderer::prepareSwapchainForRendering(uint32_t imageIndex)
