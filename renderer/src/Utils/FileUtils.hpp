@@ -5,10 +5,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
-#include <tiny_obj_loader.h>
-#include <glm/glm.hpp>
 
-namespace Utils
+namespace Engine::Utils
 {
     inline std::vector<char> readFile(const std::string &filename)
     {
