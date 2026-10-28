@@ -38,7 +38,7 @@ namespace Engine::Scene
 
     glm::mat4 Camera::getProjectionMatrix() const
     {
-        glm::mat4 proj = glm::perspective(glm::radians(m_fov), m_aspectRatio, 0.1f, 1600.0f);
+        glm::mat4 proj = glm::perspective(glm::radians(m_fovDegrees), m_aspectRatio, 0.1f, 1600.0f);
         proj[1][1] *= -1; // Flip Y for Vulkan coordinate system convention
         return proj;
     }
