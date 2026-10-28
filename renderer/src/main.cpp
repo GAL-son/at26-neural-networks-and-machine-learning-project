@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        Engine engine(false); // or whatever flag
+        Engine::Engine engine(false); // or whatever flag
         engine.run();
     } catch (const std::exception& e) {
         std::cerr << "FATAL EXCEPTION: " << e.what() << std::endl;

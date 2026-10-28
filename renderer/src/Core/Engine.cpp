@@ -18,10 +18,8 @@ namespace Engine
             // --- Initialize Scene & Model ---
             VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
             m_scene = std::make_unique<Scene::Scene>(
-                m_vulkanContext.getAllocator(),
                 static_cast<float>(extent.width),
                 static_cast<float>(extent.height));
-
             try
             {
                 m_scene->loadModel("scenes/bedroom/iscv2.obj");

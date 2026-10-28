@@ -1,4 +1,5 @@
 #pragma once
+#include "Utils/Macros.hpp"
 
 #define VULKAN_HPP_NO_CONSTRUCTORS
 
@@ -16,8 +17,7 @@ namespace Engine::Renderer
         ~Mesh();
 
         // Prevent copying
-        Mesh(const Mesh &) = delete;
-        Mesh &operator=(const Mesh &) = delete;
+        DISALLOW_COPY(Mesh)
 
         // Allow moving
         Mesh(Mesh &&) noexcept = default;
