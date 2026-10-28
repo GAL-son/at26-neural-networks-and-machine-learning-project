@@ -5,7 +5,7 @@
 namespace Engine::Renderer
 {
 
-    VulkanMesh::VulkanMesh(VmaAllocator allocator, const Engine::Scene::Mesh &meshData)
+    Mesh::Mesh(VmaAllocator allocator, const Engine::Scene::Mesh &meshData)
         : m_allocator(allocator), m_indexCount(static_cast<uint32_t>(meshData.indices.size()))
     {
         // 1. Create Vertex Buffer
@@ -19,7 +19,7 @@ namespace Engine::Renderer
                      m_indexBuffer, m_indexAllocation, meshData.indices.data());
     }
 
-    void VulkanMesh::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
+    void Mesh::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
                                   VkBuffer &outBuffer, VmaAllocation &outAllocation, const void *data)
     {
         VkBufferCreateInfo bufferInfo{};
@@ -34,7 +34,7 @@ namespace Engine::Renderer
 
         if (vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, &outBuffer, &outAllocation, nullptr) != VK_SUCCESS)
         {
-            throw std::runtime_error("Failed to create VMA buffer for VulkanMesh!");
+            throw std::runtime_error("Failed to create VMA buffer for Mesh!");
         }
 
         if (data != nullptr)
@@ -46,7 +46,7 @@ namespace Engine::Renderer
         }
     }
 
-    void VulkanMesh::draw(VkCommandBuffer commandBuffer, const std::vector<Engine::Scene::Submesh> &submeshes) const
+    void Mesh::draw(VkCommandBuffer commandBuffer, const std::vector<Engine::Scene::Submesh> &submeshes) const
     {
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer, offsets);
@@ -65,7 +65,7 @@ namespace Engine::Renderer
         }
     }
 
-    VulkanMesh::~VulkanMesh()
+    Mesh::~Mesh()
     {
         if (m_vertexBuffer != VK_NULL_HANDLE && m_vertexAllocation != VK_NULL_HANDLE)
         {

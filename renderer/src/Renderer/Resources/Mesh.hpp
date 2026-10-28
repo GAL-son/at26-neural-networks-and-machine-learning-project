@@ -9,20 +9,19 @@
 
 namespace Engine::Renderer
 {
-
-    class VulkanMesh
+    class Mesh
     {
     public:
-        VulkanMesh(VmaAllocator allocator, const Engine::Scene::Mesh &meshData);
-        ~VulkanMesh();
+        Mesh(VmaAllocator allocator, const Engine::Scene::Mesh &meshData);
+        ~Mesh();
 
         // Prevent copying
-        VulkanMesh(const VulkanMesh &) = delete;
-        VulkanMesh &operator=(const VulkanMesh &) = delete;
+        Mesh(const Mesh &) = delete;
+        Mesh &operator=(const Mesh &) = delete;
 
         // Allow moving
-        VulkanMesh(VulkanMesh &&) noexcept = default;
-        VulkanMesh &operator=(VulkanMesh &&) noexcept = default;
+        Mesh(Mesh &&) noexcept = default;
+        Mesh &operator=(Mesh &&) noexcept = default;
 
         void draw(VkCommandBuffer commandBuffer, const std::vector<Engine::Scene::Submesh> &submeshes) const;
 
