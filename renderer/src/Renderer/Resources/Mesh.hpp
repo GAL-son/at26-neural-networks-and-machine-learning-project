@@ -1,42 +1,31 @@
 #pragma once
-#include "Utils/Macros.hpp"
 
-#define VULKAN_HPP_NO_CONSTRUCTORS
-
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
-#include <vector>
-#include "../../Scene/Mesh.hpp"
+#include <memory>
+#include <vulkan/vulkan.hpp>
+#include "Scene/Scene.hpp"
+#include "Buffer.hpp"
+#include "VulkanContext.hpp"
 
 namespace Engine::Renderer
 {
     class Mesh
     {
     public:
-        Mesh(VmaAllocator allocator, const Engine::Scene::Mesh &meshData);
-        ~Mesh();
+        // Tworzy zasoby GPU na podstawie danych z CPU
+        Mesh(VulkanContext& context, const Scene::Mesh& cpuMesh);
+        ~Mesh() = default;
 
-        // Prevent copying
-        DISALLOW_COPY(Mesh)
+        // Samobindowanie się do bufora poleceń (zgodnie z Twoim założeniem!)
+        void Bind(VkCommandBuffer commandBuffer) const;
 
-        // Allow moving
-        Mesh(Mesh &&) noexcept = default;
-        Mesh &operator=(Mesh &&) noexcept = default;
-
-        void draw(VkCommandBuffer commandBuffer, const std::vector<Engine::Scene::Submesh> &submeshes) const;
+        uint32_t GetIndexCount() const { return m_indexCount; }
+        const std::vector<Scene::Submesh>& GetSubmeshes() const { return m_submeshes; }
 
     private:
-        VmaAllocator m_allocator;
-
-        VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
-        VmaAllocation m_vertexAllocation = VK_NULL_HANDLE;
-
-        VkBuffer m_indexBuffer = VK_NULL_HANDLE;
-        VmaAllocation m_indexAllocation = VK_NULL_HANDLE;
-        uint32_t m_indexCount = 0;
-
-        void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
-                          VkBuffer &outBuffer, VmaAllocation &outAllocation, const void *data);
+        std::unique_ptr<Buffer> m_vertexBuffer;
+        std::unique_ptr<Buffer> m_indexBuffer;
+        
+        uint32_t m_indexCount{0};
+        std::vector<Scene::Submesh> m_submeshes;
     };
-
-} // namespace Engine::Renderer
+}
