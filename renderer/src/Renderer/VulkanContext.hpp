@@ -1,6 +1,8 @@
 #pragma once
 #define VULKAN_HPP_NO_CONSTRUCTORS
 
+#include "../Utils/Macros.hpp"
+
 #include <vulkan/vulkan.hpp>
 #include <vk_mem_alloc.h>
 #include "../Core/Window.hpp"
@@ -12,11 +14,8 @@ public:
     explicit VulkanContext(const Window &window);
     ~VulkanContext();
 
-    // Prevent accidental copying or moving of raw Vulkan resource wrappers
-    VulkanContext(const VulkanContext &) = delete;
-    VulkanContext &operator=(const VulkanContext &) = delete;
-    VulkanContext(VulkanContext &&) = delete;
-    VulkanContext &operator=(VulkanContext &&) = delete;
+    DISALLOW_COPY(VulkanContext)
+    DISALLOW_MOVE(VulkanContext)
 
     // Getters
     VkDevice getDevice() const { return m_device; }

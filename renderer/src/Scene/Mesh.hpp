@@ -1,51 +1,59 @@
 #pragma once
 
-#define VULKAN_HPP_NO_CONSTRUCTORS
-
-#include <vulkan/vulkan.hpp>
-#include <vk_mem_alloc.h>
-#include <glm/glm.hpp>
 #include <vector>
-#include <array>
+#include <string>
+#include <cstdint>
+#include <limits>
+#include <glm/glm.hpp>
 
-#include "../Utils/FileUtils.hpp"
+namespace Engine::Scene
+{
+    struct Vertex
+    {
+        glm::vec3 position{0.0f};
+        glm::vec3 normal{0.0f, 1.0f, 0.0f};
+        glm::vec2 texCoord{0.0f};
+        glm::vec3 tangent{0.0f};
+    };
 
-struct Vertex {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec2 texCoord;
+    using Index = uint32_t;
 
-    static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
-};
+    struct Submesh
+    {
+        std::string name;
+        Index indexOffset{0};
+        Index indexCount{0};
+        int32_t materialIndex{-1};
+    };
 
-class Mesh {
-public:
-    Mesh(VmaAllocator allocator, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-    ~Mesh();
+    struct AABB
+    {
+        glm::vec3 min{std::numeric_limits<float>::max()};
+        glm::vec3 max{std::numeric_limits<float>::lowest()};
 
-    static std::unique_ptr<Mesh> createFromLoadedData(VmaAllocator allocator, const Utils::LoadedMeshData& rawData);
+        void grow(const glm::vec3 &point)
+        {
+            min = glm::min(min, point);
+            max = glm::max(max, point);
+        }
+    };
 
-    // Prevent copying to avoid double-free of VMA allocations
-    Mesh(const Mesh&) = delete;
-    Mesh& operator=(const Mesh&) = delete;
+    class Mesh
+    {
+    public:
+        std::string name;
+        std::vector<Vertex> vertices;
+        std::vector<Index> indices;
+        std::vector<Submesh> submeshes;
+        AABB bounds;
 
-    void draw(VkCommandBuffer commandBuffer) const;
-
-    uint32_t getVertexCount() const { return m_vertexCount; }
-    uint32_t getIndexCount() const { return m_indexCount; }
-
-private:
-    VmaAllocator m_allocator;
-    
-    VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
-    VmaAllocation m_vertexAllocation = VK_NULL_HANDLE;
-    uint32_t m_vertexCount = 0;
-
-    VkBuffer m_indexBuffer = VK_NULL_HANDLE;
-    VmaAllocation m_indexAllocation = VK_NULL_HANDLE;
-    uint32_t m_indexCount = 0;
-
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, 
-                      VkBuffer& outBuffer, VmaAllocation& outAllocation, const void* data = nullptr);
-};
+        void computeBounds()
+        {
+            bounds = AABB{};
+            for (const auto &vertex : vertices)
+            {
+                bounds.grow(vertex.position);
+            }
+        }
+    };
+}
