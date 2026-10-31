@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.hpp>
 #include "Scene/Scene.hpp"
 #include "Buffer.hpp"
-#include "VulkanContext.hpp"
+#include "Renderer/VulkanContext.hpp"
 
 namespace Engine::Renderer
 {
@@ -12,7 +12,7 @@ namespace Engine::Renderer
     {
     public:
         // Tworzy zasoby GPU na podstawie danych z CPU
-        Mesh(VulkanContext& context, const Scene::Mesh& cpuMesh);
+        Mesh(VmaAllocator allocator, const Scene::Mesh& cpuMesh);
         ~Mesh() = default;
 
         // Samobindowanie się do bufora poleceń (zgodnie z Twoim założeniem!)

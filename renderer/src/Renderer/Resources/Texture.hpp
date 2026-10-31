@@ -5,7 +5,7 @@
 #include <vk_mem_alloc.h>
 
 #include "Scene/Texture.hpp"
-#include "VulkanContext.hpp"
+#include "Renderer/VulkanContext.hpp"
 #include "Buffer.hpp"
 
 namespace Engine::Renderer

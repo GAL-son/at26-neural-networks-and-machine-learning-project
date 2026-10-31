@@ -1,64 +1,45 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 #include <vector>
-#include "Renderer/VulkanContext.hpp"
+#include <vulkan/vulkan.hpp>
+#include "RenderPass.hpp"
 
 namespace Engine::Renderer
 {
-    struct OffscreenBuffer
-    {
-        VkImage image = VK_NULL_HANDLE;
-        VmaAllocation allocation = VK_NULL_HANDLE;
-        VkImageView imageView = VK_NULL_HANDLE;
-        VkSampler sampler = VK_NULL_HANDLE;
-    };
-
-    class CompositePass
+    class CompositePass : public RenderPass
     {
     public:
-        static constexpr int BUFFER_COUNT = 4;
+        // Przyjmuje kontekst, rozmiar oraz widoki 4 buforów z GeometryPass oraz wspólny sampler
+        CompositePass(
+            VulkanContext& context, 
+            VkExtent2D extent, 
+            const std::vector<VkImageView>& inputImageViews, 
+            VkSampler sampler
+        );
+        ~CompositePass() override = default;
 
-        explicit CompositePass(VulkanContext &vulkanContext);
-        ~CompositePass();
+        void Create() override;
+        void Cleanup() override;
 
-        void init();
-        void cleanup();
-
-        // Call this BEFORE vkCmdBeginRendering
-        void recordBufferClears(VkCommandBuffer commandBuffer);
-
-        // Call this INSIDE vkCmdBeginRendering
-        void drawComposite(VkCommandBuffer commandBuffer);
-
-        const OffscreenBuffer& getBuffer(int index) const { return m_buffers[index]; }
+        void Begin(VkCommandBuffer commandBuffer, VkExtent2D extent) override;
+        // Ponieważ kompozycja nie potrzebuje sceny ani kamery, parametry te pozostają puste
+        void Render(VkCommandBuffer commandBuffer, Renderer::Scene& scene, Camera& camera) override;
+        void End(VkCommandBuffer commandBuffer) override;
 
     private:
-        void createBuffers();
-        void createDescriptors();
-        void createPipeline();
-        
-        VkShaderModule createShaderModule(const std::vector<char> &code);
-        
-        void insertImageMemoryBarrier(
-            VkCommandBuffer commandBuffer,
-            VkImage image,
-            VkImageLayout oldLayout,
-            VkImageLayout newLayout,
-            VkAccessFlags srcAccess,
-            VkAccessFlags dstAccess,
-            VkPipelineStageFlags srcStage,
-            VkPipelineStageFlags dstStage
-        );
+        VkExtent2D m_extent;
+        std::vector<VkImageView> m_inputImageViews;
+        VkSampler m_sampler;
 
-        VulkanContext &m_vulkanContext;
-        OffscreenBuffer m_buffers[BUFFER_COUNT];
-        
-        VkDescriptorSetLayout m_compositeDescriptorLayout = VK_NULL_HANDLE;
-        VkDescriptorPool m_compositePool = VK_NULL_HANDLE;
-        VkDescriptorSet m_compositeDescriptorSet = VK_NULL_HANDLE;
-        VkPipelineLayout m_compositePipelineLayout = VK_NULL_HANDLE;
-        VkPipeline m_compositePipeline = VK_NULL_HANDLE;
+        VkPipeline m_pipeline{VK_NULL_HANDLE};
+        VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
+        VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
+        VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
+        VkDescriptorSet m_descriptorSet{VK_NULL_HANDLE};
+
+        void CreateDescriptorSetLayout();
+        void CreateDescriptorPool();
+        void CreateDescriptorSet();
+        void CreatePipeline();
     };
 }

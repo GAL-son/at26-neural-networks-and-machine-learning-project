@@ -2,37 +2,48 @@
 #include <iostream>
 #include <thread>
 
+#include "Utils/Models/ObjLoader.hpp"
+
 namespace Engine
 {
-
     Engine::Engine(bool headless)
         : m_headless(headless),
           m_window(1280, 720, "AI Antialiaser Renderer", headless),
           m_vulkanContext(m_window),
           m_renderer(m_vulkanContext, m_window)
     {
-        if (!m_headless)
-        {
-            m_renderer.init();
+        m_renderer.init();
 
-            // --- Initialize Scene & Model ---
-            VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
-            m_scene = std::make_unique<Scene::Scene>(
-                static_cast<float>(extent.width),
-                static_cast<float>(extent.height));
-            try
-            {
-                m_scene->loadModel("scenes/bedroom/iscv2.obj");
-                std::cout << "Successfully loaded and converted McGuire bedroom scene!\n";
-            }
-            catch (const std::exception &e)
-            {
-                std::cerr << "Failed to load model: " << e.what() << std::endl;
-            }
+        // --- Initialize Scene & Model on CPU ---
+        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+        float aspectRatio = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+
+        // FOV = 45 stopni, near = 0.1f, far = 100.0f
+        m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 1000.0f);
+
+        // Ustawiamy kamerę tak, żeby patrzyła na scenę (np. lekko cofnięta i w górę)
+        m_camera->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        try
+        {
+            // 1. Wczytujemy scenę z pliku za pomocą statycznej metody ObjLoader
+            Scene::Scene cpuScene = Utils::ObjLoader::loadModel("scenes/bedroom/iscv2.obj");
+
+            // 2. Tworzymy unikalny wskaźnik na naszą scenę CPU
+            m_scene = std::make_unique<Scene::Scene>(std::move(cpuScene));
+            std::cout << "Successfully loaded McGuire bedroom scene via ObjLoader!\n";
+
+            // 3. Przekazujemy wczytaną scenę do renderera w celu konwersji i uploadu na GPU
+            m_renderer.loadScene(*m_scene);
+            std::cout << "Successfully converted and uploaded scene assets to GPU!\n";
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Failed to load or upload model: " << e.what() << std::endl;
         }
     }
 
-    Engine::~Engine() = default; // Destructor is clean since m_renderer and m_scene handle their own RAII cleanup!
+    Engine::~Engine() = default; // RAII dba o czyszczenie zasobów w m_renderer i m_scene!
 
     void Engine::run()
     {
@@ -71,8 +82,12 @@ namespace Engine
 
     void Engine::runWindowed()
     {
+        float cameraRotationDeg = 0;
+        m_camera->setPosition(glm::vec3(10.0f, 10.0f, 10.0f));
+
         while (!m_window.shouldClose())
         {
+            m_camera->setRotation(0, cameraRotationDeg);
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
             m_lastTime = currentTime;
@@ -83,8 +98,15 @@ namespace Engine
 
             m_window.pollEvents();
 
-            // Delegate entire frame rendering to the renderer domain
-            m_renderer.renderFrame(m_scene.get(), m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            // Aktualizacja logiki kamery (np. ruch, rotacja - jeśli zaimplementowana w klasie Engine)
+            // m_camera.update(m_frameTimeMs);
+
+            // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
+            m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
+
+            cameraRotationDeg += 0.1;
+            if (cameraRotationDeg > 360)
+                cameraRotationDeg = 0;
         }
     }
 }

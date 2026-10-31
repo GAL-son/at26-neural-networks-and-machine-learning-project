@@ -1,127 +1,51 @@
 #include "CompositePass.hpp"
-
 #include <stdexcept>
-#include "Utils/FileUtils.hpp"
+#include <array>
+#include "Utils/FileUtils.hpp" // lub Twoja metoda wczytywania plików spv
 
 namespace Engine::Renderer
 {
-    CompositePass::CompositePass(VulkanContext &vulkanContext)
-        : m_vulkanContext(vulkanContext) {}
-
-    CompositePass::~CompositePass()
+    CompositePass::CompositePass(
+        VulkanContext& context, 
+        VkExtent2D extent, 
+        const std::vector<VkImageView>& inputImageViews, 
+        VkSampler sampler)
+        : RenderPass(context), m_extent(extent), m_inputImageViews(inputImageViews), m_sampler(sampler)
     {
-        cleanup();
     }
 
-    void CompositePass::init()
+    void CompositePass::Create()
     {
-        createBuffers();
-        createDescriptors();
-        createPipeline();
+        CreateDescriptorSetLayout();
+        CreateDescriptorPool();
+        CreateDescriptorSet();
+        CreatePipeline();
     }
 
-    void CompositePass::cleanup()
+    void CompositePass::Cleanup()
     {
-        VkDevice device = m_vulkanContext.getDevice();
-        VmaAllocator allocator = m_vulkanContext.getAllocator();
-
-        for (int i = 0; i < BUFFER_COUNT; i++)
-        {
-            if (m_buffers[i].imageView != VK_NULL_HANDLE)
-            {
-                vkDestroyImageView(device, m_buffers[i].imageView, nullptr);
-                m_buffers[i].imageView = VK_NULL_HANDLE;
-            }
-            if (m_buffers[i].sampler != VK_NULL_HANDLE)
-            {
-                vkDestroySampler(device, m_buffers[i].sampler, nullptr);
-                m_buffers[i].sampler = VK_NULL_HANDLE;
-            }
-            if (m_buffers[i].image != VK_NULL_HANDLE && m_buffers[i].allocation != VK_NULL_HANDLE)
-            {
-                vmaDestroyImage(allocator, m_buffers[i].image, m_buffers[i].allocation);
-                m_buffers[i].image = VK_NULL_HANDLE;
-                m_buffers[i].allocation = VK_NULL_HANDLE;
-            }
+        if (m_pipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(m_device, m_pipeline, nullptr);
+            m_pipeline = VK_NULL_HANDLE;
         }
-
-        if (m_compositePipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(device, m_compositePipeline, nullptr);
-            m_compositePipeline = VK_NULL_HANDLE;
+        if (m_pipelineLayout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+            m_pipelineLayout = VK_NULL_HANDLE;
         }
-        if (m_compositePipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(device, m_compositePipelineLayout, nullptr);
-            m_compositePipelineLayout = VK_NULL_HANDLE;
+        if (m_descriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+            m_descriptorPool = VK_NULL_HANDLE;
         }
-        if (m_compositePool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, m_compositePool, nullptr);
-            m_compositePool = VK_NULL_HANDLE;
-        }
-        if (m_compositeDescriptorLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, m_compositeDescriptorLayout, nullptr);
-            m_compositeDescriptorLayout = VK_NULL_HANDLE;
+        if (m_descriptorSetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+            m_descriptorSetLayout = VK_NULL_HANDLE;
         }
     }
 
-    void CompositePass::createBuffers()
+    void CompositePass::CreateDescriptorSetLayout()
     {
-        VkDevice device = m_vulkanContext.getDevice();
-        VmaAllocator allocator = m_vulkanContext.getAllocator();
-        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
-
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = extent.width;
-        imageInfo.extent.height = extent.height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        VmaAllocationCreateInfo allocInfo{};
-        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-        for (int i = 0; i < BUFFER_COUNT; i++)
-        {
-            vmaCreateImage(allocator, &imageInfo, &allocInfo, &m_buffers[i].image, &m_buffers[i].allocation, nullptr);
-
-            VkImageViewCreateInfo viewInfo{};
-            viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            viewInfo.image = m_buffers[i].image;
-            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-            viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            viewInfo.subresourceRange.levelCount = 1;
-            viewInfo.subresourceRange.layerCount = 1;
-            vkCreateImageView(device, &viewInfo, nullptr, &m_buffers[i].imageView);
-
-            VkSamplerCreateInfo samplerInfo{};
-            samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-            samplerInfo.magFilter = VK_FILTER_LINEAR;
-            samplerInfo.minFilter = VK_FILTER_LINEAR;
-            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            vkCreateSampler(device, &samplerInfo, nullptr, &m_buffers[i].sampler);
-        }
-    }
-
-    void CompositePass::createDescriptors()
-    {
-        VkDevice device = m_vulkanContext.getDevice();
-
-        VkDescriptorSetLayoutBinding bindings[BUFFER_COUNT];
-        for (int i = 0; i < BUFFER_COUNT; i++)
+        std::array<VkDescriptorSetLayoutBinding, 4> bindings{};
+        for (int i = 0; i < 4; i++)
         {
             bindings[i].binding = i;
             bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -132,55 +56,88 @@ namespace Engine::Renderer
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = BUFFER_COUNT;
-        layoutInfo.pBindings = bindings;
-        vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_compositeDescriptorLayout);
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
 
-        VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BUFFER_COUNT};
+        if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create composite descriptor set layout!");
+        }
+    }
+
+    void CompositePass::CreateDescriptorPool()
+    {
+        VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4};
+
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = 1;
         poolInfo.pPoolSizes = &poolSize;
         poolInfo.maxSets = 1;
-        vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_compositePool);
 
-        VkDescriptorSetAllocateInfo setAllocInfo{};
-        setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        setAllocInfo.descriptorPool = m_compositePool;
-        setAllocInfo.descriptorSetCount = 1;
-        setAllocInfo.pSetLayouts = &m_compositeDescriptorLayout;
-        vkAllocateDescriptorSets(device, &setAllocInfo, &m_compositeDescriptorSet);
+        if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create composite descriptor pool!");
+        }
+    }
 
-        VkDescriptorImageInfo imageInfos[BUFFER_COUNT];
-        VkWriteDescriptorSet descriptorWrites[BUFFER_COUNT] = {};
-        for (int i = 0; i < BUFFER_COUNT; i++)
+    void CompositePass::CreateDescriptorSet()
+    {
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = m_descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &m_descriptorSetLayout;
+
+        if (vkAllocateDescriptorSets(m_device, &allocInfo, &m_descriptorSet) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate composite descriptor set!");
+        }
+
+        std::array<VkDescriptorImageInfo, 4> imageInfos{};
+        std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+
+        for (size_t i = 0; i < 4; i++)
         {
-            imageInfos[i].sampler = m_buffers[i].sampler;
-            imageInfos[i].imageView = m_buffers[i].imageView;
+            imageInfos[i].sampler = m_sampler;
+            imageInfos[i].imageView = m_inputImageViews[i];
             imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
             descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[i].dstSet = m_compositeDescriptorSet;
-            descriptorWrites[i].dstBinding = i;
+            descriptorWrites[i].dstSet = m_descriptorSet;
+            descriptorWrites[i].dstBinding = static_cast<uint32_t>(i);
             descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptorWrites[i].descriptorCount = 1;
             descriptorWrites[i].pImageInfo = &imageInfos[i];
         }
-        vkUpdateDescriptorSets(device, BUFFER_COUNT, descriptorWrites, 0, nullptr);
+
+        vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 
-    void CompositePass::createPipeline()
+    void CompositePass::CreatePipeline()
     {
-        VkDevice device = m_vulkanContext.getDevice();
-
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &m_compositeDescriptorLayout;
-        vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_compositePipelineLayout);
+        pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
 
+        if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create composite pipeline layout!");
+        }
+
+        // Wczytywanie skompilowanych shaderów kompozycji
         auto vertShaderCode = Utils::readFile("shaders/composite.vert.spv");
         auto fragShaderCode = Utils::readFile("shaders/composite.frag.spv");
+        
+        // Zakładamy, że masz metodę pomocniczą do tworzenia modułów shaderów
+        // (możesz ją przenieść lub użyć swojej fabryki)
+        auto createShaderModule = [this](const std::vector<char>& code) {
+            VkShaderModuleCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            createInfo.codeSize = code.size();
+            createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+            VkShaderModule module;
+            vkCreateShaderModule(m_device, &createInfo, nullptr, &module);
+            return module;
+        };
+
         VkShaderModule vertModule = createShaderModule(vertShaderCode);
         VkShaderModule fragModule = createShaderModule(fragShaderCode);
 
@@ -189,7 +146,9 @@ namespace Engine::Renderer
             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fragModule, "main", nullptr}
         };
 
+        // Brak vertex input, bo używamy pełnoekranowego trójkąta generowanego w shaderze!
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+        
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -200,7 +159,7 @@ namespace Engine::Renderer
         VkPipelineRasterizationStateCreateInfo rasterizer{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
         rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
         VkPipelineMultisampleStateCreateInfo multisampling{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
@@ -219,7 +178,8 @@ namespace Engine::Renderer
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
-        VkFormat swapchainFormat = m_vulkanContext.getSwapchainImageFormat();
+        // Używamy dynamic rendering dla wyjścia na swapchain (lub standardowego RenderPassa, jeśli Twój silnik go wymaga)
+        VkFormat swapchainFormat = m_context.getSwapchainImageFormat();
         VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo{};
         pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
         pipelineRenderingCreateInfo.colorAttachmentCount = 1;
@@ -237,87 +197,44 @@ namespace Engine::Renderer
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = m_compositePipelineLayout;
+        pipelineInfo.layout = m_pipelineLayout;
 
-        vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_compositePipeline);
-
-        vkDestroyShaderModule(device, vertModule, nullptr);
-        vkDestroyShaderModule(device, fragModule, nullptr);
-    }
-
-    void CompositePass::recordBufferClears(VkCommandBuffer commandBuffer)
-    {
-        VkClearColorValue clearColors[BUFFER_COUNT] = {
-            {{0.0f, 0.0f, 0.0f, 1.0f}}, // Buffer 0: Overwritten by GeometryPass
-            {{0.0f, 1.0f, 0.0f, 1.0f}}, // Green (Normals)
-            {{0.0f, 0.0f, 1.0f, 1.0f}}, // Blue (Motion Vectors)
-            {{1.0f, 1.0f, 0.0f, 1.0f}}  // Yellow (SSAA Ground Truth)
-        };
-
-        for (int i = 0; i < BUFFER_COUNT; i++)
-        {
-            // Transition: UNDEFINED -> TRANSFER_DST
-            insertImageMemoryBarrier(
-                commandBuffer, m_buffers[i].image,
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
-            );
-
-            VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-            vkCmdClearColorImage(commandBuffer, m_buffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColors[i], 1, &range);
-
-            // Transition: TRANSFER_DST -> SHADER_READ_ONLY_OPTIMAL
-            insertImageMemoryBarrier(
-                commandBuffer, m_buffers[i].image,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-            );
+        if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create composite pipeline!");
         }
+
+        vkDestroyShaderModule(m_device, fragModule, nullptr);
     }
 
-    void CompositePass::drawComposite(VkCommandBuffer commandBuffer)
+    void CompositePass::Begin(VkCommandBuffer commandBuffer, VkExtent2D extent)
     {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipelineLayout, 0, 1, &m_compositeDescriptorSet, 0, nullptr);
+        // Tutaj rozpoczynamy renderowanie na docelowy obraz (np. swapchain frame)
+        // Jeśli używasz dynamic rendering, konfigurujesz strukturę vkCmdBeginRendering.
+    }
+
+    void CompositePass::Render(VkCommandBuffer commandBuffer, Renderer::Scene& scene, Camera& camera)
+    {
+        // 1. Podpinamy pipeline kompozycji
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
+        // 2. Podpinamy zestaw deskryptorów zawierający 4 bufory z GeometryPass
+        vkCmdBindDescriptorSets(
+            commandBuffer, 
+            VK_PIPELINE_BIND_POINT_GRAPHICS, 
+            m_pipelineLayout, 
+            0, 
+            1, 
+            &m_descriptorSet, 
+            0, 
+            nullptr
+        );
+
+        // 3. Rysujemy pełnoekranowy trójkąt (3 wierzchołki generowane w shaderze)
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     }
 
-    void CompositePass::insertImageMemoryBarrier(
-        VkCommandBuffer commandBuffer,
-        VkImage image,
-        VkImageLayout oldLayout,
-        VkImageLayout newLayout,
-        VkAccessFlags srcAccess,
-        VkAccessFlags dstAccess,
-        VkPipelineStageFlags srcStage,
-        VkPipelineStageFlags dstStage
-    )
+    void CompositePass::End(VkCommandBuffer commandBuffer)
     {
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = oldLayout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
-        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        barrier.srcAccessMask = srcAccess;
-        barrier.dstAccessMask = dstAccess;
-
-        vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-    }
-
-    VkShaderModule CompositePass::createShaderModule(const std::vector<char> &code)
-    {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
-
-        VkShaderModule shaderModule;
-        vkCreateShaderModule(m_vulkanContext.getDevice(), &createInfo, nullptr, &shaderModule);
-        return shaderModule;
+        // Zakończenie renderowania
     }
 }

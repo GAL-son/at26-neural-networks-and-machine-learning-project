@@ -1,31 +1,29 @@
-#pragma once
+#include "Scene.hpp"
 
-#include <vector>
-#include <memory>
-#include <vk_mem_alloc.h>
-#include "Scene/Scene.hpp"
 #include "Renderer/Resources/Mesh.hpp"
+#include "Renderer/Resources/Texture.hpp"
 
 namespace Engine::Renderer
 {
-    struct GpuRenderable
+    Scene::Scene(VulkanContext &context, VkCommandPool commandPool, const Engine::Scene::Scene &cpuScene)
+        : m_allocator(context.getAllocator())
     {
-        std::unique_ptr<Mesh> mesh;
-        std::vector<Engine::Scene::Submesh> submeshes;
-        glm::mat4 transform;
-        // Material or texture references can go here
-    };
+        // 1. Konwersja i upload wszystkich tekstur na GPU
+        m_gpuTextures.reserve(cpuScene.textures.size());
+        for (const auto &cpuTex : cpuScene.textures)
+        {
+            m_gpuTextures.push_back(std::make_unique<Texture>(context, commandPool, cpuTex));
+        }
 
-    class VulkanScene
-    {
-    public:
-        VulkanScene(VmaAllocator allocator);
+        // 2. Skopiowanie czystych danych materiałowych z CPU do GPU Scene
+        // Brak alokacji deskryptorów Vulcana! Materiały to teraz zwykłe dane parametrów.
+        m_gpuMaterials = cpuScene.materials;
 
-        void uploadScene(const Engine::Scene::Scene &cpuScene);
-        const std::vector<GpuRenderable>& getRenderables() const { return m_gpuRenderables; }
-
-    private:
-        VmaAllocator m_allocator;
-        std::vector<GpuRenderable> m_gpuRenderables;
-    };
+        // 3. Konwersja i upload wszystkich meshów na GPU
+        m_gpuMeshes.reserve(cpuScene.meshes.size());
+        for (const auto &cpuMesh : cpuScene.meshes)
+        {
+            m_gpuMeshes.push_back(std::make_unique<Mesh>(m_allocator, cpuMesh));
+        }
+    }
 }

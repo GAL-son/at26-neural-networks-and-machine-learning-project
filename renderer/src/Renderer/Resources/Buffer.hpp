@@ -13,7 +13,6 @@ namespace Engine::Renderer
         ~Buffer();
 
         DISALLOW_COPY(Buffer)
-        ALLOW_COPY(Buffer)
 
         void UploadData(const void* data);
 

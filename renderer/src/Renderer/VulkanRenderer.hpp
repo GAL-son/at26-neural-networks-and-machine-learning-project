@@ -1,68 +1,70 @@
 #pragma once
 
-#include "../Utils/Macros.hpp"
-
-#define VULKAN_HPP_NO_CONSTRUCTORS
-#include <vulkan/vulkan.h>
 #include <memory>
 #include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "VulkanContext.hpp"
-#include "Passes/GeometryPass.hpp"
-#include "Passes/CompositePass.hpp"
-#include "../UI/UIManager.hpp"
-#include "../Core/Window.hpp"
-#include "../Scene/Scene.hpp"
+#include "Core/Window.hpp"
+#include "Core/Camera.hpp"
+#include "Renderer/Resources/Scene.hpp"
+#include "Renderer/Passes/GeometryPass.hpp"
+#include "Renderer/Passes/CompositePass.hpp"
+#include "UI/UIManager.hpp"
 
 namespace Engine::Renderer
 {
-    /**
-     * @brief Manages the main Vulkan rendering loop, synchronization, and pass coordination.
-     */
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext &vulkanContext, const Window &window);
+        VulkanRenderer(VulkanContext& vulkanContext, const Window& window);
         ~VulkanRenderer();
 
-        DISALLOW_COPY(VulkanRenderer)
-
-        /** @brief Initializes command pools, synchronization primitives, and rendering passes. */
         void init();
-
-        /** @brief Safely releases all managed Vulkan resources. */
         void cleanup();
 
-        /**
-         * @brief Executes a single frame rendering and UI composition cycle.
-         * @note Blocks on the in-flight fence until the previous frame completes.
-         */
-        void renderFrame(Scene::Scene *scene, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
+        // Zarządzanie sceną GPU
+        void loadScene(const Engine::Scene::Scene& cpuScene);
+
+        // Główna pętla renderowania
+        void renderFrame(Engine::Camera& camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
 
     private:
-        VulkanContext &m_vulkanContext;
-        const Window &m_window;
+        VulkanContext& m_vulkanContext;
+        const Window& m_window;
 
-        // Vulkan synchronization & command primitives
-        VkCommandPool m_commandPool = VK_NULL_HANDLE;
-        VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
-        VkSemaphore m_imageAvailableSemaphore = VK_NULL_HANDLE;
-        std::vector<VkSemaphore> m_renderFinishedSemaphores;
-        VkFence m_inFlightFence = VK_NULL_HANDLE;
-        VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
+        // Command Pool dla alokacji komend renderowania i uploadu
+        VkCommandPool m_commandPool{VK_NULL_HANDLE};
+        VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
 
-        // Passes & UI
-        GeometryPass m_geometryPass;
-        CompositePass m_compositePass;
+        // Sampler wykorzystywany do czytania buforów MRT w composite passie
+        VkSampler m_defaultSampler{VK_NULL_HANDLE};
+
+        // Pasy renderowania
+        std::unique_ptr<GeometryPass> m_geometryPass;
+        std::unique_ptr<CompositePass> m_compositePass;
+
+        // Zarządcza scena GPU
+        std::unique_ptr<Renderer::Scene> m_activeGpuScene;
+
+        // UI Manager (ImGui)
         UIManager m_uiManager;
+        VkDescriptorPool m_imguiPool{VK_NULL_HANDLE};
+
+        // Synchronizacja
+        VkSemaphore m_imageAvailableSemaphore{VK_NULL_HANDLE};
+        std::vector<VkSemaphore> m_renderFinishedSemaphores;
+        VkFence m_inFlightFence{VK_NULL_HANDLE};
 
         void createCommandPool();
         void createCommandBuffers();
+        void createSampler();
         void createSyncPrimitives();
+
         void waitForInFlightFence();
         uint32_t acquireNextSwapchainImage();
         void beginCommandBuffer();
-        void recordGeometryAndClears(Scene::Scene *scene);
+        
         void prepareSwapchainForRendering(uint32_t imageIndex);
         void prepareSwapchainForPresentation(uint32_t imageIndex);
         void insertImageMemoryBarrier(
@@ -72,11 +74,10 @@ namespace Engine::Renderer
             VkAccessFlags srcAccess,
             VkAccessFlags dstAccess,
             VkPipelineStageFlags srcStage,
-            VkPipelineStageFlags dstStage);
+            VkPipelineStageFlags dstStage
+        );
 
-        void recordUIAndComposition(uint32_t imageIndex, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
         void submitCommandBuffer(uint32_t imageIndex);
         void presentSwapchainImage(uint32_t imageIndex);
-
     };
 }

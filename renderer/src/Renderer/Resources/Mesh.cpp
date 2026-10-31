@@ -2,12 +2,10 @@
 
 namespace Engine::Renderer
 {
-    Mesh::Mesh(VulkanContext &context, const Scene::Mesh &sourceMesh)
+    Mesh::Mesh(VmaAllocator allocator, const Scene::Mesh &sourceMesh)
         : m_indexCount(static_cast<uint32_t>(sourceMesh.indices.size())),
         m_submeshes(sourceMesh.submeshes)
     {
-        VmaAllocator allocator = context.getAllocator();
-
         VkDeviceSize vertexBufferSize = sizeof(Scene::Vertex) * sourceMesh.vertices.size();
         VkDeviceSize indexBufferSize = sizeof(Scene::Index) * sourceMesh.indices.size();
 

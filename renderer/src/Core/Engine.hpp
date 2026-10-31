@@ -34,5 +34,7 @@ namespace Engine
         float m_frameTimeMs = 0.0f;
         float m_passTimeMs = 0.0f;
         std::chrono::high_resolution_clock::time_point m_lastTime;
+
+        std::unique_ptr<Camera> m_camera;
     };
 }

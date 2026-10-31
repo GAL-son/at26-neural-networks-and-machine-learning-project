@@ -6,9 +6,7 @@ namespace Engine::Renderer
 {
     VulkanRenderer::VulkanRenderer(VulkanContext &vulkanContext, const Window &window)
         : m_vulkanContext(vulkanContext),
-          m_window(window),
-          m_compositePass(vulkanContext),
-          m_geometryPass(vulkanContext)
+          m_window(window)
     {
     }
 
@@ -19,13 +17,36 @@ namespace Engine::Renderer
 
     void VulkanRenderer::init()
     {
-        m_geometryPass.init();
-        m_compositePass.init();
-        m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
-
         createCommandPool();
         createCommandBuffers();
+        createSampler();
         createSyncPrimitives();
+
+        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+
+        // 1. Tworzenie i inicjalizacja GeometryPass
+        m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, extent);
+        m_geometryPass->Create();
+
+        // 2. Tworzenie i inicjalizacja CompositePass z teksturami wyjściowymi z GeometryPass
+        m_compositePass = std::make_unique<CompositePass>(
+            m_vulkanContext,
+            extent,
+            m_geometryPass->GetTargetImageViews(),
+            m_defaultSampler);
+        m_compositePass->Create();
+
+        // 3. Inicjalizacja UI
+        m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
+    }
+
+    void VulkanRenderer::loadScene(const Engine::Scene::Scene &cpuScene)
+    {
+        // Upewniamy się, że GPU nie wykonuje w tym momencie prac renderowania
+        vkDeviceWaitIdle(m_vulkanContext.getDevice());
+
+        // Tworzymy nową scenę GPU przy użyciu surowej sceny CPU i wspólnego Command Poola
+        m_activeGpuScene = std::make_unique<Renderer::Scene>(m_vulkanContext, m_commandPool, cpuScene);
     }
 
     void VulkanRenderer::cleanup()
@@ -36,8 +57,26 @@ namespace Engine::Renderer
 
         vkDeviceWaitIdle(device);
 
-        m_compositePass.cleanup();
+        // 1. Najpierw niszczymy obiekty alokujące pamięć przez VMA (scena, passy)
+        m_activeGpuScene.reset();
+
+        if (m_compositePass)
+        {
+            m_compositePass->Cleanup();
+            m_compositePass.reset();
+        }
+
+        if (m_geometryPass)
+        {
+            m_geometryPass->Cleanup();
+            m_geometryPass.reset();
+        }
+
         m_uiManager.shutdown(m_vulkanContext, m_imguiPool);
+
+        // 2. Dopiero na końcu reszta zasobów logicznych Vulcana (samplery, semafory itp.)
+        if (m_defaultSampler)
+            vkDestroySampler(device, m_defaultSampler, nullptr);
 
         if (m_imageAvailableSemaphore)
             vkDestroySemaphore(device, m_imageAvailableSemaphore, nullptr);
@@ -47,32 +86,83 @@ namespace Engine::Renderer
             if (sem)
                 vkDestroySemaphore(device, sem, nullptr);
         }
+        m_renderFinishedSemaphores.clear();
+
         if (m_inFlightFence)
             vkDestroyFence(device, m_inFlightFence, nullptr);
+
         if (m_commandPool)
             vkDestroyCommandPool(device, m_commandPool, nullptr);
     }
 
-    void VulkanRenderer::renderFrame(Scene::Scene *scene, uint32_t processedFrames, float frameTimeMs, float passTimeMs)
+    void VulkanRenderer::renderFrame(Engine::Camera &camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs)
     {
-        VkDevice device = m_vulkanContext.getDevice();
-
-        // 1. Frame pacing & acquisition
+        // 1. Pacing & Acquisition
         waitForInFlightFence();
         uint32_t imageIndex = acquireNextSwapchainImage();
 
-        // 2. Command recording loop
+        // 2. Rejestrowanie komend renderowania
         vkResetCommandBuffer(m_commandBuffer, 0);
         beginCommandBuffer();
 
-        recordGeometryAndClears(scene);
+        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+
+        // A. Pass Geometryczny (MRT -> 4 bufory wyjściowe)
+        m_geometryPass->Begin(m_commandBuffer, extent);
+        if (m_activeGpuScene)
+        {
+            m_geometryPass->Render(m_commandBuffer, *m_activeGpuScene, camera);
+        }
+        m_geometryPass->End(m_commandBuffer);
+
+        // B. Przygotowanie swapchaina pod rendering kompozycji oraz UI
         prepareSwapchainForRendering(imageIndex);
-        recordUIAndComposition(imageIndex, processedFrames, frameTimeMs, passTimeMs);
+
+        // C. Composite Pass & UI Overlay na bufor Swapchain
+        m_uiManager.beginFrame();
+        m_uiManager.renderStatsAndGrid(processedFrames, frameTimeMs, passTimeMs);
+
+        VkRenderingAttachmentInfo colorAttachmentInfo{};
+        colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        colorAttachmentInfo.imageView = m_vulkanContext.getSwapchainImageViews()[imageIndex];
+        colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentInfo.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+        VkRenderingInfo renderingInfo{};
+        renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        renderingInfo.renderArea.offset = {0, 0};
+        renderingInfo.renderArea.extent = extent;
+        renderingInfo.layerCount = 1;
+        renderingInfo.colorAttachmentCount = 1;
+        renderingInfo.pColorAttachments = &colorAttachmentInfo;
+
+        vkCmdBeginRendering(m_commandBuffer, &renderingInfo);
+
+        VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
+        vkCmdSetViewport(m_commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{{0, 0}, extent};
+        vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
+
+        // Rysujemy siatkę 2x2 z tekstur MRT za pomocą CompositePass
+        if (m_activeGpuScene)
+        {
+            m_compositePass->Render(m_commandBuffer, *m_activeGpuScene, camera);
+        }
+
+        // Rysujemy ImGui w tym samym subpassie/rendering passie
+        m_uiManager.renderDrawData(m_commandBuffer);
+
+        vkCmdEndRendering(m_commandBuffer);
+
+        // D. Przygotowanie obrazu do zaprezentowania na ekranie
         prepareSwapchainForPresentation(imageIndex);
 
         vkEndCommandBuffer(m_commandBuffer);
 
-        // 3. GPU submission & presentation
+        // 3. Wysyłanie do GPU & Present
         submitCommandBuffer(imageIndex);
         presentSwapchainImage(imageIndex);
     }
@@ -103,6 +193,22 @@ namespace Engine::Renderer
         if (vkAllocateCommandBuffers(device, &allocInfo, &m_commandBuffer) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to allocate command buffer!");
+        }
+    }
+
+    void VulkanRenderer::createSampler()
+    {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+        if (vkCreateSampler(m_vulkanContext.getDevice(), &samplerInfo, nullptr, &m_defaultSampler) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create default sampler!");
         }
     }
 
@@ -154,26 +260,6 @@ namespace Engine::Renderer
         vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
     }
 
-    void VulkanRenderer::recordGeometryAndClears(Scene::Scene *scene)
-    {
-        m_compositePass.recordBufferClears(m_commandBuffer);
-
-        if (!scene)
-            return;
-
-    //     m_geometryPass.render(
-    //         m_commandBuffer, *scene,
-    //         m_compositePass.getBuffer(0).imageView,
-    //         m_compositePass.getBuffer(0).image,
-    //         m_vulkanContext.getSwapchainExtent());
-
-    //     m_geometryPass.renderNormals(
-    //         m_commandBuffer, *scene,
-    //         m_compositePass.getBuffer(1).imageView,
-    //         m_compositePass.getBuffer(1).image,
-    //         m_vulkanContext.getSwapchainExtent());
-    }
-
     void VulkanRenderer::prepareSwapchainForRendering(uint32_t imageIndex)
     {
         insertImageMemoryBarrier(
@@ -219,40 +305,6 @@ namespace Engine::Renderer
         barrier.dstAccessMask = dstAccess;
 
         vkCmdPipelineBarrier(m_commandBuffer, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-    }
-
-    void VulkanRenderer::recordUIAndComposition(uint32_t imageIndex, uint32_t processedFrames, float frameTimeMs, float passTimeMs)
-    {
-        m_uiManager.beginFrame();
-        m_uiManager.renderStatsAndGrid(processedFrames, frameTimeMs, passTimeMs);
-
-        VkRenderingAttachmentInfo colorAttachmentInfo{};
-        colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        colorAttachmentInfo.imageView = m_vulkanContext.getSwapchainImageViews()[imageIndex];
-        colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-        VkRenderingInfo renderingInfo{};
-        renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        renderingInfo.renderArea.offset = {0, 0};
-        renderingInfo.renderArea.extent = m_vulkanContext.getSwapchainExtent();
-        renderingInfo.layerCount = 1;
-        renderingInfo.colorAttachmentCount = 1;
-        renderingInfo.pColorAttachments = &colorAttachmentInfo;
-
-        vkCmdBeginRendering(m_commandBuffer, &renderingInfo);
-
-        VkViewport viewport{0.0f, 0.0f, (float)m_vulkanContext.getSwapchainExtent().width, (float)m_vulkanContext.getSwapchainExtent().height, 0.0f, 1.0f};
-        vkCmdSetViewport(m_commandBuffer, 0, 1, &viewport);
-
-        VkRect2D scissor{{0, 0}, m_vulkanContext.getSwapchainExtent()};
-        vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
-
-        m_compositePass.drawComposite(m_commandBuffer);
-        m_uiManager.renderDrawData(m_commandBuffer);
-
-        vkCmdEndRendering(m_commandBuffer);
     }
 
     void VulkanRenderer::submitCommandBuffer(uint32_t imageIndex)
