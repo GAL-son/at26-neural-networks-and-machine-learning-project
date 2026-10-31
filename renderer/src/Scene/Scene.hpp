@@ -1,24 +1,27 @@
 #pragma once
 
-#include "Mesh.hpp"
-#include "Camera.hpp"
-#include <vector>
-#include <memory>
 #include <string>
+#include <vector>
+#include "Mesh.hpp"
+#include "Material.hpp"
+#include "Texture.hpp"
 
-class Scene {
-public:
-    Scene(VmaAllocator allocator, float aspectWidth, float aspectHeight);
-    ~Scene() = default;
+namespace Engine::Scene
+{
+    class Scene
+    {
+    public:
+        std::string name{"DefaultScene"};
 
-    void loadModel(const std::string& filepath);
-    void render(VkCommandBuffer commandBuffer) const;
-
-    Camera& getCamera() { return m_camera; }
-    const Camera& getCamera() const { return m_camera; }
-
-private:
-    VmaAllocator m_allocator;
-    Camera m_camera;
-    std::vector<std::unique_ptr<Mesh>> m_meshes;
-};
+        std::vector<Mesh> meshes;
+        std::vector<Material> materials;
+        std::vector<Texture> textures;
+        
+        void clear()
+        {
+            meshes.clear();
+            materials.clear();
+            textures.clear();
+        }
+    };
+}
