@@ -1,16 +1,13 @@
 #version 450
 
-// Dane wejściowe z vertex shadera
 layout(location = 0) in vec2 inUV;
 layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec2 inMotionVector;
 
-// Wyjścia G-Buffera / MRT
 layout(location = 0) out vec4 outColor;          
 layout(location = 1) out vec4 outNormal;         
-layout(location = 2) out vec4 outMotionVectors;  
-layout(location = 3) out vec4 outGroundTruth;    
+layout(location = 2) out vec4 outMotionVectors;    
 
-// Binding 0: Właściwości materiału (UBO)
 layout(binding = 0) uniform MaterialUBO {
     vec3 ambient;
     float shininess;
@@ -20,21 +17,17 @@ layout(binding = 0) uniform MaterialUBO {
     int hasDiffuseTexture;
 } material;
 
-// Binding 1: Próbnik tekstury diffuse
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
     vec4 baseColor;
-    
     if (material.hasDiffuseTexture != 0) {
         baseColor = texture(texSampler, inUV);
     } else {
         baseColor = vec4(material.diffuse, material.opacity);
     }
 
-    // Wypełnienie buforów wyjściowych G-Buffera
     outColor         = baseColor;
     outNormal        = vec4(normalize(inNormal) * 0.5f + 0.5f, 1.0f);
-    outMotionVectors = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    outGroundTruth   = baseColor;
+    outMotionVectors = vec4(inMotionVector, 0.0f, 1.0f); // Prawidłowe wektory ruchu
 }

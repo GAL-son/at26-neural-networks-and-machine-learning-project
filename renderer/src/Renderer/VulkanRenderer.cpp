@@ -28,15 +28,19 @@ namespace Engine::Renderer
         m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, extent);
         m_geometryPass->Create();
 
-        // 2. Tworzenie i inicjalizacja CompositePass z teksturami wyjściowymi z GeometryPass
+        // 2. Pobieramy widoki kolorów i doklejamy na koniec widok głębi
+        std::vector<VkImageView> compositeInputViews = m_geometryPass->GetTargetImageViews(); // 3 bufory kolorów
+        compositeInputViews.push_back(m_geometryPass->GetDepthImageView());                   // Czwarty bufor = Głębokość
+
+        // 3. Tworzenie i inicjalizacja CompositePass z nową listą widoków
         m_compositePass = std::make_unique<CompositePass>(
             m_vulkanContext,
             extent,
-            m_geometryPass->GetTargetImageViews(),
+            compositeInputViews, // <-- Przekazujemy 3 kolory + 1 głębię
             m_defaultSampler);
         m_compositePass->Create();
 
-        // 3. Inicjalizacja UI
+        // 4. Inicjalizacja UI
         m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
     }
 

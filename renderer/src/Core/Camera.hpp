@@ -12,16 +12,37 @@ namespace Engine
         ~Camera() = default;
 
         // Ustawienia pozycji i orientacji
-        void setPosition(const glm::vec3& position) { m_position = position; updateViewMatrix(); }
-        void setRotation(float pitch, float yaw) { m_pitch = pitch; m_yaw = yaw; updateViewMatrix(); }
-        void translate(const glm::vec3& delta) { m_position += delta; updateViewMatrix(); }
+        void setPosition(const glm::vec3 &position)
+        {
+            m_position = position;
+            updateViewMatrix();
+        }
+        void setRotation(float pitch, float yaw)
+        {
+            m_pitch = pitch;
+            m_yaw = yaw;
+            updateViewMatrix();
+        }
+        void translate(const glm::vec3 &delta)
+        {
+            m_position += delta;
+            updateViewMatrix();
+        }
 
-        // Gettery macierzy dla shaderów (Push Constants)
-        const glm::mat4& getViewMatrix() const { return m_viewMatrix; }
-        const glm::mat4& getProjectionMatrix() const { return m_projectionMatrix; }
+        // Gettery macierzy dla shaderów (Zwracamy przez wartość, aby uniknąć Undefined Behavior!)
+        const glm::mat4 &getViewMatrix() const { return m_viewMatrix; }
+        const glm::mat4 &getProjectionMatrix() const { return m_projectionMatrix; }
+        
+        glm::mat4 getVPMatrix() const { return m_projectionMatrix * m_viewMatrix; } // POPRAWIONA KOLEJNOŚĆ I BRAK REFERENCJI DO TYMCZASOWEGO OBIEKTU
+        const glm::mat4 &getPreviousVpMatrix() const { return m_previousVp; }
 
         // Obsługa zmiany rozmiaru okna (resize)
         void updateAspectRatio(float aspectRatio);
+        
+        void updatePreviousVp() 
+        { 
+            m_previousVp = m_projectionMatrix * m_viewMatrix; // Poprawna kolejność
+        }
 
     private:
         void updateViewMatrix();
@@ -41,5 +62,6 @@ namespace Engine
 
         glm::mat4 m_viewMatrix{1.0f};
         glm::mat4 m_projectionMatrix{1.0f};
+        glm::mat4 m_previousVp{1.0f};
     };
 }

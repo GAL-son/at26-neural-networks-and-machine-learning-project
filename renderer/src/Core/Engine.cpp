@@ -19,7 +19,7 @@ namespace Engine
         float aspectRatio = static_cast<float>(extent.width) / static_cast<float>(extent.height);
 
         // FOV = 45 stopni, near = 0.1f, far = 100.0f
-        m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 1000.0f);
+        m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 10000.0f);
 
         // Ustawiamy kamerę tak, żeby patrzyła na scenę (np. lekko cofnięta i w górę)
         m_camera->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -27,6 +27,7 @@ namespace Engine
         try
         {
             // 1. Wczytujemy scenę z pliku za pomocą statycznej metody ObjLoader
+            // Scene::Scene cpuScene = Utils::ObjLoader::loadModel("scenes/sponza/sponza.obj");
             Scene::Scene cpuScene = Utils::ObjLoader::loadModel("scenes/bedroom/iscv2.obj");
 
             // 2. Tworzymy unikalny wskaźnik na naszą scenę CPU
@@ -87,13 +88,15 @@ namespace Engine
 
         while (!m_window.shouldClose())
         {
-            m_camera->setRotation(0, cameraRotationDeg);
+            m_camera->updatePreviousVp(); // this saves current vp
+            m_camera->setRotation(0, cameraRotationDeg); // this updates rotation so also should modify vp right?
+
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
             m_lastTime = currentTime;
 
             m_frameTimeMs = delta.count();
-            m_passTimeMs = m_frameTimeMs * 0.75f;
+            m_passTimeMs = m_frameTimeMs;
             m_processedFrames++;
 
             m_window.pollEvents();
@@ -104,7 +107,8 @@ namespace Engine
             // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
             m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
 
-            cameraRotationDeg += 0.1;
+            
+            cameraRotationDeg += 5 * m_passTimeMs * 0.001;
             if (cameraRotationDeg > 360)
                 cameraRotationDeg = 0;
         }

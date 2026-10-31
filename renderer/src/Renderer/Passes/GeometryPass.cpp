@@ -69,38 +69,49 @@ namespace Engine::Renderer
         for (size_t i = 0; i < m_targetImages.size(); ++i)
         {
             if (m_targetImageViews[i])
+            {
                 vkDestroyImageView(m_device, m_targetImageViews[i], nullptr);
+                m_targetImageViews[i] = VK_NULL_HANDLE;
+            }
             if (m_targetImages[i] && m_targetAllocations[i])
             {
                 vmaDestroyImage(m_context.getAllocator(), m_targetImages[i], m_targetAllocations[i]);
+                m_targetImages[i] = VK_NULL_HANDLE;
+                m_targetAllocations[i] = VK_NULL_HANDLE;
             }
         }
         m_targetImages.clear();
         m_targetImageViews.clear();
         m_targetAllocations.clear();
 
-        // Czyszczenie głębi
-        if (m_depthImageView)
+        // 2. Czyszczenie głębi (upewnij się, że te linie faktycznie się wykonują)
+        if (m_depthImageView != VK_NULL_HANDLE)
+        {
             vkDestroyImageView(m_device, m_depthImageView, nullptr);
-        if (m_depthImage && m_depthAllocation)
+            m_depthImageView = VK_NULL_HANDLE;
+        }
+        if (m_depthImage != VK_NULL_HANDLE && m_depthAllocation != VK_NULL_HANDLE)
         {
             vmaDestroyImage(m_context.getAllocator(), m_depthImage, m_depthAllocation);
+            m_depthImage = VK_NULL_HANDLE;
+            m_depthAllocation = VK_NULL_HANDLE;
         }
     }
 
     void GeometryPass::CreateAttachments()
     {
-        const std::array<VkFormat, 4> formats = {
-            VK_FORMAT_R8G8B8A8_UNORM,
-            VK_FORMAT_R16G16B16A16_SFLOAT,
-            VK_FORMAT_R16G16_SFLOAT,
-            VK_FORMAT_R8G8B8A8_UNORM};
+        // Teraz mamy tylko 3 formaty kolorów (Color, Normal, Motion Vectors)
+        const std::array<VkFormat, 3> formats = {
+            VK_FORMAT_R8G8B8A8_UNORM,      // 0: Color
+            VK_FORMAT_R16G16B16A16_SFLOAT, // 1: Normal
+            VK_FORMAT_R16G16_SFLOAT        // 2: Motion Vectors
+        };
 
-        m_targetImages.resize(4);
-        m_targetImageViews.resize(4);
-        m_targetAllocations.resize(4);
+        m_targetImages.resize(3);
+        m_targetImageViews.resize(3);
+        m_targetAllocations.resize(3);
 
-        for (size_t i = 0; i < 4; ++i)
+        for (size_t i = 0; i < 3; ++i)
         {
             VkImageCreateInfo imageInfo{};
             imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -136,7 +147,7 @@ namespace Engine::Renderer
             vkCreateImageView(m_device, &viewInfo, nullptr, &m_targetImageViews[i]);
         }
 
-        // Bufor głębi
+        // Tworzenie bufora głębi (pozostaje bez zmian, z flagą SAMPLED_BIT)
         VkImageCreateInfo depthImageInfo{};
         depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -148,7 +159,7 @@ namespace Engine::Renderer
         depthImageInfo.format = VK_FORMAT_D32_SFLOAT;
         depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT; // <-- DODANE
         depthImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -173,14 +184,15 @@ namespace Engine::Renderer
 
     void GeometryPass::CreateRenderPassCustom()
     {
-        std::array<VkAttachmentDescription, 5> attachments{};
-        const std::array<VkFormat, 4> formats = {
+        // 3 bufory kolorów + 1 bufor głębi = razem 4 attachmenty (indekse 0, 1, 2, 3)
+        std::array<VkAttachmentDescription, 4> attachments{};
+        const std::array<VkFormat, 3> formats = {
             VK_FORMAT_R8G8B8A8_UNORM,
             VK_FORMAT_R16G16B16A16_SFLOAT,
-            VK_FORMAT_R16G16_SFLOAT,
-            VK_FORMAT_R8G8B8A8_UNORM};
+            VK_FORMAT_R16G16_SFLOAT};
 
-        for (int i = 0; i < 4; ++i)
+        // Konfiguracja 3 attachmentów kolorów (indeksy 0, 1, 2)
+        for (int i = 0; i < 3; ++i)
         {
             attachments[i].format = formats[i];
             attachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -192,22 +204,23 @@ namespace Engine::Renderer
             attachments[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
 
-        attachments[4].format = VK_FORMAT_D32_SFLOAT;
-        attachments[4].samples = VK_SAMPLE_COUNT_1_BIT;
-        attachments[4].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        attachments[4].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        attachments[4].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        attachments[4].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        attachments[4].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        attachments[4].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        // 4. Attachment głębi (przesunięty na indeks 3, ponieważ nie ma już Ground Truth)
+        attachments[3].format = VK_FORMAT_D32_SFLOAT;
+        attachments[3].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[3].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[3].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[3].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[3].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-        std::array<VkAttachmentReference, 4> colorReferences = {
+        std::array<VkAttachmentReference, 3> colorReferences = {
             VkAttachmentReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
             VkAttachmentReference{1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-            VkAttachmentReference{2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-            VkAttachmentReference{3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
+            VkAttachmentReference{2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
 
-        VkAttachmentReference depthReference{4, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        // Głębokość wskazuje teraz na indeks 3
+        VkAttachmentReference depthReference{3, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -230,11 +243,11 @@ namespace Engine::Renderer
 
     void GeometryPass::CreateFramebufferCustom()
     {
-        std::array<VkImageView, 5> views = {
+        // 3 widoki kolorów + 1 widok głębi (całość ma rozmiar 4)
+        std::array<VkImageView, 4> views = {
             m_targetImageViews[0],
             m_targetImageViews[1],
             m_targetImageViews[2],
-            m_targetImageViews[3],
             m_depthImageView};
 
         VkFramebufferCreateInfo framebufferInfo{};
@@ -256,7 +269,7 @@ namespace Engine::Renderer
     void GeometryPass::CreatePipelineCustom()
     {
         std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
-        
+
         // Binding 0: UBO materiału
         bindings[0].binding = 0;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -284,7 +297,7 @@ namespace Engine::Renderer
         VkPushConstantRange pushConstantRange{};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         pushConstantRange.offset = 0;
-        pushConstantRange.size = sizeof(glm::mat4);
+        pushConstantRange.size = sizeof(glm::mat4) * 2;
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -357,7 +370,7 @@ namespace Engine::Renderer
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
 
-        std::array<VkPipelineColorBlendAttachmentState, 4> colorBlendAttachments{};
+        std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachments{};
         for (auto &attachment : colorBlendAttachments)
         {
             attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -366,7 +379,7 @@ namespace Engine::Renderer
         }
 
         VkPipelineColorBlendStateCreateInfo colorBlending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-        colorBlending.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+        colorBlending.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size()); // Wyniesie 3
         colorBlending.pAttachments = colorBlendAttachments.data();
 
         std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
@@ -436,7 +449,7 @@ namespace Engine::Renderer
 
         m_materialBuffers.resize(materialCount);
         const auto &gpuTextures = scene.GetTextures();
-        const Texture* fallbackTexture = !gpuTextures.empty() ? gpuTextures[0].get() : nullptr;
+        const Texture *fallbackTexture = !gpuTextures.empty() ? gpuTextures[0].get() : nullptr;
 
         for (size_t i = 0; i < materialCount; ++i)
         {
@@ -450,8 +463,7 @@ namespace Engine::Renderer
                 m_context.getAllocator(),
                 sizeof(MaterialUniformData),
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VMA_MEMORY_USAGE_CPU_TO_GPU
-            );
+                VMA_MEMORY_USAGE_CPU_TO_GPU);
 
             MaterialUniformData uboData{};
             uboData.ambient = mat.ambient;
@@ -464,8 +476,8 @@ namespace Engine::Renderer
             m_materialBuffers[i]->UploadData(&uboData);
 
             // Pobranie tekstury z GPU Scene z bezpiecznym fallbackiem na pierwszą teksturę
-            const Texture* gpuTexture = nullptr;
-            if (mat.hasDiffuseTexture() && mat.diffuseTextureIndex >= 0 && 
+            const Texture *gpuTexture = nullptr;
+            if (mat.hasDiffuseTexture() && mat.diffuseTextureIndex >= 0 &&
                 static_cast<size_t>(mat.diffuseTextureIndex) < gpuTextures.size())
             {
                 gpuTexture = gpuTextures[mat.diffuseTextureIndex].get();
@@ -515,12 +527,11 @@ namespace Engine::Renderer
 
     void GeometryPass::Begin(VkCommandBuffer commandBuffer, VkExtent2D extent)
     {
-        std::array<VkClearValue, 5> clearValues{};
-        clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
-        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        clearValues[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        clearValues[3].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
-        clearValues[4].depthStencil = {1.0f, 0};
+        std::array<VkClearValue, 4> clearValues{};
+        clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}}; // Color
+        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Normal
+        clearValues[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Motion Vectors
+        clearValues[3].depthStencil = {1.0f, 0};           // Depth (indeks 3)
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -549,14 +560,27 @@ namespace Engine::Renderer
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
+        // Przygotowanie macierzy
         glm::mat4 vp = camera.getProjectionMatrix() * camera.getViewMatrix();
+
+        // Docelowo: przechowuj `prevVp` z poprzedniej klatki w klasie kamery lub renderera.
+        // Na ten moment jako fallback możemy użyć bieżącej macierzy (wektory ruchu będą równe 0 do czasu dodania historii klatek).
+        glm::mat4 prevVp = camera.getPreviousVpMatrix();
+
+        // Pakujemy obie macierze do struktury Push Constants
+        struct PushData
+        {
+            glm::mat4 vp;
+            glm::mat4 prevVp;
+        } pushData{vp, prevVp};
+
         vkCmdPushConstants(
             commandBuffer,
             m_pipelineLayout,
             VK_SHADER_STAGE_VERTEX_BIT,
             0,
-            sizeof(glm::mat4),
-            &vp[0][0]);
+            sizeof(PushData),
+            &pushData);
 
         for (const auto &mesh : scene.GetMeshes())
         {
@@ -578,8 +602,7 @@ namespace Engine::Renderer
                     1,
                     &m_materialDescriptorSets[materialIndex],
                     0,
-                    nullptr
-                );
+                    nullptr);
 
                 vkCmdDrawIndexed(
                     commandBuffer,
@@ -587,8 +610,7 @@ namespace Engine::Renderer
                     1,
                     submesh.indexOffset,
                     0,
-                    0
-                );
+                    0);
             }
         }
     }
