@@ -38,7 +38,7 @@ set(SHADER_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 # POPRAWKA: Usunięto przecinki (wzorce oddzielamy spacjami)
-file(GLOB SHADER_SOURCES CMAKE_CONFIGURE_DEPENDS 
+file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS 
     "${SHADER_SRC_DIR}/*.vert" 
     "${SHADER_SRC_DIR}/*.frag" 
     "${SHADER_SRC_DIR}/*.comp"
@@ -52,8 +52,9 @@ foreach(SHADER_SRC ${SHADER_SOURCES})
     add_custom_command(
         OUTPUT ${SPIRV}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_BIN_DIR}
-        COMMAND ${GLSLC} --target-env=vulkan1.3 -o ${SPIRV} ${SHADER_SRC}
+        COMMAND ${GLSLC} --target-env=vulkan1.3 -MD -MF ${SPIRV}.d -o ${SPIRV} ${SHADER_SRC}
         DEPENDS ${SHADER_SRC}
+        DEPFILE ${SPIRV}.d
         COMMENT "Compiling shader ${SHADER_NAME}"
         VERBATIM
     )
