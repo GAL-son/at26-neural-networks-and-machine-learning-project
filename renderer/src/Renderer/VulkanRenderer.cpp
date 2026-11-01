@@ -124,7 +124,8 @@ namespace Engine::Renderer
 
         // C. Composite Pass & UI Overlay na bufor Swapchain
         m_uiManager.beginFrame();
-        m_uiManager.renderStatsAndGrid(processedFrames, frameTimeMs, passTimeMs);
+        m_uiManager.renderBufferLabels();
+        m_uiManager.renderStats(processedFrames, frameTimeMs, passTimeMs);
 
         VkRenderingAttachmentInfo colorAttachmentInfo{};
         colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;

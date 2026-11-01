@@ -48,7 +48,7 @@ namespace Engine::Renderer
         std::unique_ptr<Renderer::Scene> m_activeGpuScene;
 
         // UI Manager (ImGui)
-        UIManager m_uiManager;
+        UI::UIManager m_uiManager;
         VkDescriptorPool m_imguiPool{VK_NULL_HANDLE};
 
         // Synchronizacja
