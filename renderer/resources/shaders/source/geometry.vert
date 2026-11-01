@@ -19,9 +19,8 @@ void main() {
     outNormal = inNormal;
 
     vec4 currentPos = pushConsts.vp * vec4(inPosition, 1.0);
-    // vec4 prevPos = pushConsts.prevVp * vec4(inPosition, 1.0);
 
-    // Obliczenie wektora ruchu (różnica pozycji)
+    // Motion vector calculation
     outCurrClip = currentPos;
     outPrevClip = pushConsts.prevVp * vec4(inPosition, 1.0);
 

@@ -28,9 +28,9 @@ void main() {
         baseColor = vec4(material.diffuse, material.opacity);
     }
 
-    // Normal vectors
+    // NDC positions
     vec2 curr = inCurrClip.xy / inCurrClip.w;
-    vec2 prev = inPrevClip.xy / inCurrClip.w;
+    vec2 prev = inPrevClip.xy / inPrevClip.w;
 
     // Output targers
     outColor         = baseColor;
