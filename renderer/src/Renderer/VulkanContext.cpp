@@ -131,6 +131,11 @@ void VulkanContext::createInstance(const Window &window)
     {
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = &validationLayer;
+        VkValidationFeatureEnableEXT enables[] = {VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT};
+        VkValidationFeaturesEXT features{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
+        features.enabledValidationFeatureCount = 1;
+        features.pEnabledValidationFeatures = enables;
+        createInfo.pNext = &features;
     }
     else
     {
@@ -275,7 +280,8 @@ void VulkanContext::createSwapchain(int width, int height)
 
 void VulkanContext::recreateSwapchain(uint32_t width, uint32_t height)
 {
-    if (width == 0 || height == 0) return;
+    if (width == 0 || height == 0)
+        return;
 
     vkDeviceWaitIdle(m_device);
 
