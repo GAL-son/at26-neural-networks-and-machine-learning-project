@@ -85,13 +85,13 @@ namespace Engine
     {
         float cameraRotationDeg = 0;
         float cameraPositionX = 0;
-        m_camera->setPosition(glm::vec3(cameraPositionX, 0.0f, 10.0f));
+        m_camera->setPosition(glm::vec3(cameraPositionX, 20.0f, 20.0f));
 
         while (!m_window.shouldClose())
         {
             m_camera->updatePreviousVp(); // this saves current vp
             m_camera->setRotation(0, cameraRotationDeg);
-            m_camera->setPosition(glm::vec3(cameraPositionX, 0.0f, 10.0f));
+            m_camera->setPosition(glm::vec3(cameraPositionX, 20.0f, 20.0f));
 
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
@@ -113,9 +113,9 @@ namespace Engine
             if (cameraRotationDeg > 360)
                 cameraRotationDeg = 0;
 
-            cameraPositionX += 10 * m_passTimeMs * 0.001;
-            if (cameraPositionX > 100)
-                cameraPositionX = 0;
+            cameraPositionX += 20 * m_passTimeMs * 0.001;
+            if (cameraPositionX > 140)
+                cameraPositionX = -140;
         }
     }
 }
