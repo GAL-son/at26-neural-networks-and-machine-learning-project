@@ -27,8 +27,8 @@ namespace Engine
 
         bool m_headless;
         Window m_window;
-        Renderer::VulkanRenderer m_renderer;
         VulkanContext m_vulkanContext;
+        Renderer::VulkanRenderer m_renderer;
 
         uint32_t m_processedFrames = 0;
         float m_frameTimeMs = 0.0f;

@@ -10,7 +10,7 @@ namespace Engine
         : m_headless(headless),
           m_window(1280, 720, "AI Antialiaser Renderer", headless),
           m_vulkanContext(m_window),
-          m_renderer(m_vulkanContext, m_window)
+          m_renderer(m_vulkanContext, m_window, 1920, 1080)
     {
         m_renderer.init();
 

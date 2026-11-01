@@ -17,7 +17,7 @@ namespace Engine::Renderer
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext& vulkanContext, const Window& window);
+        VulkanRenderer(VulkanContext& vulkanContext, const Window& window, unsigned int renderResolutionX, unsigned int renderResolutionY);
         ~VulkanRenderer();
 
         void init();
@@ -32,6 +32,7 @@ namespace Engine::Renderer
     private:
         VulkanContext& m_vulkanContext;
         const Window& m_window;
+        VkExtent2D m_renderExtent;
 
         // Command Pool dla alokacji komend renderowania i uploadu
         VkCommandPool m_commandPool{VK_NULL_HANDLE};

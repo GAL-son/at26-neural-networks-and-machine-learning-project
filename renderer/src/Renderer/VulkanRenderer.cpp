@@ -4,9 +4,14 @@
 
 namespace Engine::Renderer
 {
-    VulkanRenderer::VulkanRenderer(VulkanContext &vulkanContext, const Window &window)
+    VulkanRenderer::VulkanRenderer(
+        VulkanContext &vulkanContext, 
+        const Window &window, 
+        unsigned int renderResolutionX, 
+        unsigned int renderResolutionY)
         : m_vulkanContext(vulkanContext),
-          m_window(window)
+          m_window(window),
+          m_renderExtent(VkExtent2D{renderResolutionX, renderResolutionY})
     {
     }
 
@@ -22,10 +27,10 @@ namespace Engine::Renderer
         createSampler();
         createSyncPrimitives();
 
-        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+        VkExtent2D displayExtent = m_vulkanContext.getSwapchainExtent();
 
         // 1. Tworzenie i inicjalizacja GeometryPass
-        m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, extent);
+        m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, m_renderExtent);
         m_geometryPass->Create();
 
         // 2. Pobieramy widoki kolorów i doklejamy na koniec widok głębi
@@ -35,7 +40,7 @@ namespace Engine::Renderer
         // 3. Tworzenie i inicjalizacja CompositePass z nową listą widoków
         m_compositePass = std::make_unique<CompositePass>(
             m_vulkanContext,
-            extent,
+            displayExtent,
             compositeInputViews, // <-- Przekazujemy 3 kolory + 1 głębię
             m_defaultSampler);
         m_compositePass->Create();
@@ -109,10 +114,10 @@ namespace Engine::Renderer
         vkResetCommandBuffer(m_commandBuffer, 0);
         beginCommandBuffer();
 
-        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
+        VkExtent2D displayExtent = m_vulkanContext.getSwapchainExtent();
 
         // A. Pass Geometryczny (MRT -> 4 bufory wyjściowe)
-        m_geometryPass->Begin(m_commandBuffer, extent);
+        m_geometryPass->Begin(m_commandBuffer, displayExtent);
         if (m_activeGpuScene)
         {
             m_geometryPass->Render(m_commandBuffer, *m_activeGpuScene, camera);
@@ -138,17 +143,17 @@ namespace Engine::Renderer
         VkRenderingInfo renderingInfo{};
         renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
         renderingInfo.renderArea.offset = {0, 0};
-        renderingInfo.renderArea.extent = extent;
+        renderingInfo.renderArea.extent = displayExtent;
         renderingInfo.layerCount = 1;
         renderingInfo.colorAttachmentCount = 1;
         renderingInfo.pColorAttachments = &colorAttachmentInfo;
 
         vkCmdBeginRendering(m_commandBuffer, &renderingInfo);
 
-        VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
+        VkViewport viewport{0.0f, 0.0f, (float)displayExtent.width, (float)displayExtent.height, 0.0f, 1.0f};
         vkCmdSetViewport(m_commandBuffer, 0, 1, &viewport);
 
-        VkRect2D scissor{{0, 0}, extent};
+        VkRect2D scissor{{0, 0}, displayExtent};
         vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
 
         // Rysujemy siatkę 2x2 z tekstur MRT za pomocą CompositePass

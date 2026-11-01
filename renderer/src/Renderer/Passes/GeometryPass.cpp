@@ -548,16 +548,16 @@ namespace Engine::Renderer
         renderPassInfo.renderPass = m_renderPass;
         renderPassInfo.framebuffer = m_framebuffers[0];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = extent;
+        renderPassInfo.renderArea.extent = m_extent;
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        VkViewport viewport{0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f};
+        VkViewport viewport{0.0f, 0.0f, static_cast<float>(m_extent.width), static_cast<float>(m_extent.height), 0.0f, 1.0f};
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-        VkRect2D scissor{{0, 0}, extent};
+        VkRect2D scissor{{0, 0}, m_extent};
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
     }
 
