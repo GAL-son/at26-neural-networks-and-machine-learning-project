@@ -36,6 +36,9 @@ namespace Engine
         glm::mat4 getVPMatrix() const { return m_projectionMatrix * m_viewMatrix; } // POPRAWIONA KOLEJNOŚĆ I BRAK REFERENCJI DO TYMCZASOWEGO OBIEKTU
         const glm::mat4 &getPreviousVpMatrix() const { return m_previousVp; }
 
+        float getNearPlane() const { return m_nearPlane; }
+        float getFarPlane() const { return m_farPlane; }
+
         // Obsługa zmiany rozmiaru okna (resize)
         void updateAspectRatio(float aspectRatio);
         

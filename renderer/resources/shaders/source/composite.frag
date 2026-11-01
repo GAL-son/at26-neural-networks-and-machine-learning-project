@@ -1,38 +1,36 @@
 #version 450
 
-layout(location = 0) in vec2 fragTexCoord;
+layout(location = 0) in vec2 fragTexCoord; // (0,0) = top left
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 0) uniform sampler2D texColor;        // Top-Left: Kolor
-layout(set = 0, binding = 1) uniform sampler2D texNormals;     // Top-Right: Normalne
-layout(set = 0, binding = 2) uniform sampler2D texMotion;      // Bottom-Left: Wektory ruchu
-layout(set = 0, binding = 3) uniform sampler2D texDepth;       // Bottom-Right: Głębokość
+layout(set = 0, binding = 0) uniform sampler2D texColor;     
+layout(set = 0, binding = 1) uniform sampler2D texNormals;     
+layout(set = 0, binding = 2) uniform sampler2D texMotion;      
+layout(set = 0, binding = 3) uniform sampler2D texDepth;
+
+layout(push_constant) uniform CompositeParams {
+    float mvScale; // Motion vector visual gain
+    float nearPlane;
+    float farPlane;
+    float depthRange;
+} params;
 
 void main() {
     vec2 uv = fragTexCoord;
-    
-    if (uv.x < 0.5 && uv.y > 0.5) {
-        // Top-Left: Color
-        outColor = texture(texColor, vec2(uv.x * 2.0, (uv.y - 0.5) * 2.0));
-    } else if (uv.x >= 0.5 && uv.y > 0.5) {
-        // Top-Right: Normals
-        outColor = texture(texNormals, vec2((uv.x - 0.5) * 2.0, (uv.y - 0.5) * 2.0));
-    } else if (uv.x < 0.5 && uv.y <= 0.5) {
-        vec2 mv = texture(texMotion, vec2(uv.x * 2.0, uv.y * 2.0)).rg;
-        const float MV_SCALE = 100.0;
-        // Bottom-Left: Motion Vectors
-        outColor = vec4(mv * MV_SCALE * 0.5 + 0.5, 0.5, 1.0);
-    } else {
-       float depth = texture(texDepth, vec2((uv.x - 0.5) * 2.0, uv.y * 2.0)).r;
-        
-        // Jeśli depth == 1.0, to jest to tło. Odwracamy to:
-        // Tło stanie się czarne (0.0), a obiekty im bliżej, tym bielsze.
-        float mappedDepth = 1.0 - depth;
-        
-        // Ponieważ obiekty mogą być bardzo blisko zakresu 1.0, mnożymy to przez współczynnik wzmocnienia (kontrastu).
-        // Możesz dostosować tę wartość (np. * 5.0 lub * 20.0), żeby uwydatnić szczegóły.
-        mappedDepth *= 10.0; 
+    bool left = uv.x < 0.5;
+    bool top = uv.x < 0.5;
 
-        outColor = vec4(vec3(mappedDepth), 1.0);
+    vec2 local = (uv - vec2(left ? 0.0 : 0.5, top ? 0.0, 0.5)) * 2.0;
+
+    if(top && left) { // Albedo 
+        outColor = texture(texColor, local);
+    } else if (top) {// Normal
+        outColor = tecture(texNormal, local);
+    } else if (left) { // Motion Vector
+        vec2 mv = texture(texMotion, local).rg;
+        outColor = vec4(mv * params.mvScale * 0.5 + 0.5, 0.0, 1.0);
+    } else { // Depth
+        float z = linearizeDepth(texture(texDepth, local).r);
+        outColor = vec4(vec3(1.0 - clamp(z / params.depthRange, 0.0, 1.0)), 1.0);
     }
 }

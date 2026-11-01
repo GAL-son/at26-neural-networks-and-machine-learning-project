@@ -155,10 +155,19 @@ namespace Engine::Renderer
 
     void CompositePass::CreatePipeline()
     {
+        VkPushConstantRange range{
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(CompositeParams)
+        };
+
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &range;
+
 
         if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
         {
@@ -260,6 +269,12 @@ namespace Engine::Renderer
     {
         // 1. Podpinamy pipeline kompozycji
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
+        CompositeParams p{};
+        p.farPlane = camera.getFarPlane();
+        p.nearPlane = camera.getNearPlane();
+
+        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(p), &p);
 
         // 2. Podpinamy zestaw deskryptorów zawierający 4 bufory z GeometryPass
         vkCmdBindDescriptorSets(
