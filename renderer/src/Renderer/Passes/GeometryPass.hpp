@@ -28,7 +28,7 @@ namespace Engine::Renderer
     class GeometryPass : public RenderPass
     {
     public:
-        GeometryPass(VulkanContext &context, VkExtent2D extent);
+        GeometryPass(VulkanContext &context, VkExtent2D extent, VkDescriptorSetLayout materialSetLayout);
         ~GeometryPass() override = default;
 
         void Create() override;
@@ -61,14 +61,9 @@ namespace Engine::Renderer
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 
-        // Zasoby per-materiał (bufory UBO oraz alokacje descriptor setów dla materiałów ze sceny)
-        std::vector<std::unique_ptr<Buffer>> m_materialBuffers;
-        std::vector<VkDescriptorSet> m_materialDescriptorSets;
-
         void CreateAttachments();
         void CreateRenderPassCustom();
         void CreateFramebufferCustom();
         void CreatePipelineCustom();
-        void CreateMaterialResources(Renderer::Scene &scene); // Nowa metoda inicjalizująca materiały
     };
 }

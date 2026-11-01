@@ -270,6 +270,22 @@ namespace Engine::Renderer
         vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
     }
 
+    void VulkanRenderer::createMaterialSetLayout() {
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+
+        bindings[0] = {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        bindings[1] = {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        if(vkCreateDescriptorSetLayout(m_vulkanContext.getDevice() ,&layoutInfo, nullptr, &m_materialSetLayout) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create material descriptor set layout");
+
+
+    }
+
     void VulkanRenderer::prepareSwapchainForRendering(uint32_t imageIndex)
     {
         insertImageMemoryBarrier(

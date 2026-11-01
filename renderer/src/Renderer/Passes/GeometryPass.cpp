@@ -7,7 +7,7 @@
 
 namespace Engine::Renderer
 {
-    GeometryPass::GeometryPass(VulkanContext &context, VkExtent2D extent)
+    GeometryPass::GeometryPass(VulkanContext &context, VkExtent2D extent, VkDescriptorSetLayout materialSetLayout)
         : RenderPass(context), m_extent(extent)
     {
     }
@@ -22,10 +22,6 @@ namespace Engine::Renderer
 
     void GeometryPass::Cleanup()
     {
-        // Najpierw zwalniamy bufory VMA, zanim zniszczony zostanie kontekst i alokator VMA
-        m_materialBuffers.clear();
-        m_materialDescriptorSets.clear();
-
         if (m_descriptorPool != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -422,119 +418,6 @@ namespace Engine::Renderer
         vkDestroyShaderModule(m_device, fragModule, nullptr);
     }
 
-    void GeometryPass::CreateMaterialResources(Renderer::Scene &scene)
-    {
-        const auto &materials = scene.GetMaterials();
-        size_t materialCount = materials.empty() ? 1 : materials.size();
-
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(materialCount);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(materialCount);
-
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(materialCount);
-
-        if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create material descriptor pool in GeometryPass!");
-        }
-
-        std::vector<VkDescriptorSetLayout> layouts(materialCount, m_descriptorSetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = m_descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(materialCount);
-        allocInfo.pSetLayouts = layouts.data();
-
-        m_materialDescriptorSets.resize(materialCount);
-        if (vkAllocateDescriptorSets(m_device, &allocInfo, m_materialDescriptorSets.data()) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to allocate material descriptor sets in GeometryPass!");
-        }
-
-        m_materialBuffers.resize(materialCount);
-        const auto &gpuTextures = scene.GetTextures();
-        const Texture *fallbackTexture = !gpuTextures.empty() ? gpuTextures[0].get() : nullptr;
-
-        for (size_t i = 0; i < materialCount; ++i)
-        {
-            Engine::Scene::Material mat;
-            if (!materials.empty())
-            {
-                mat = materials[i];
-            }
-
-            m_materialBuffers[i] = std::make_unique<Buffer>(
-                m_context.getAllocator(),
-                sizeof(MaterialUniformData),
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-            MaterialUniformData uboData{};
-            uboData.ambient = mat.ambient;
-            uboData.diffuse = mat.diffuse;
-            uboData.specular = mat.specular;
-            uboData.shininess = mat.shininess;
-            uboData.opacity = mat.opacity;
-            uboData.hasDiffuseTexture = mat.hasDiffuseTexture() ? 1 : 0;
-
-            m_materialBuffers[i]->UploadData(&uboData);
-
-            // Pobranie tekstury z GPU Scene z bezpiecznym fallbackiem na pierwszą teksturę
-            const Texture *gpuTexture = nullptr;
-            if (mat.hasDiffuseTexture() && mat.diffuseTextureIndex >= 0 &&
-                static_cast<size_t>(mat.diffuseTextureIndex) < gpuTextures.size())
-            {
-                gpuTexture = gpuTextures[mat.diffuseTextureIndex].get();
-            }
-            else
-            {
-                gpuTexture = fallbackTexture; // Zapobiega VK_NULL_HANDLE w descriptorze!
-            }
-
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = m_materialBuffers[i]->GetHandle();
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(MaterialUniformData);
-
-            VkDescriptorImageInfo imageInfo{};
-            if (gpuTexture)
-            {
-                imageInfo.sampler = gpuTexture->GetSampler();
-                imageInfo.imageView = gpuTexture->GetImageView();
-                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            }
-            else
-            {
-                // Jeśli w całej scenie nie ma żadnej tekstury, rzucamy błąd inicjalizacji
-                throw std::runtime_error("GeometryPass requires at least one valid texture in the scene as a fallback!");
-            }
-
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = m_materialDescriptorSets[i];
-            descriptorWrites[0].dstBinding = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = m_materialDescriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-        }
-    }
-
     void GeometryPass::Begin(VkCommandBuffer commandBuffer, VkExtent2D extent)
     {
         std::array<VkClearValue, 4> clearValues{};
@@ -563,11 +446,6 @@ namespace Engine::Renderer
 
     void GeometryPass::Render(VkCommandBuffer commandBuffer, Renderer::Scene &scene, Camera &camera)
     {
-        if (m_materialDescriptorSets.empty())
-        {
-            CreateMaterialResources(scene);
-        }
-
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
         glm::mat4 vp = camera.getProjectionMatrix() * camera.getViewMatrix();
         glm::mat4 prevVp = camera.getPreviousVpMatrix();
@@ -587,37 +465,7 @@ namespace Engine::Renderer
             sizeof(PushData),
             &pushData);
 
-        for (const auto &mesh : scene.GetMeshes())
-        {
-            mesh->Bind(commandBuffer);
-
-            for (const Engine::Scene::Submesh &submesh : mesh->GetSubmeshes())
-            {
-                uint32_t materialIndex = 0;
-                if (submesh.materialIndex >= 0 && static_cast<size_t>(submesh.materialIndex) < m_materialDescriptorSets.size())
-                {
-                    materialIndex = static_cast<uint32_t>(submesh.materialIndex);
-                }
-
-                vkCmdBindDescriptorSets(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    m_pipelineLayout,
-                    0,
-                    1,
-                    &m_materialDescriptorSets[materialIndex],
-                    0,
-                    nullptr);
-
-                vkCmdDrawIndexed(
-                    commandBuffer,
-                    submesh.indexCount,
-                    1,
-                    submesh.indexOffset,
-                    0,
-                    0);
-            }
-        }
+        scene.Draw(commandBuffer, m_pipelineLayout);
     }
 
     void GeometryPass::End(VkCommandBuffer commandBuffer)

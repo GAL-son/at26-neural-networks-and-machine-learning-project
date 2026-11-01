@@ -52,6 +52,8 @@ namespace Engine::Renderer
         UI::UIManager m_uiManager;
         VkDescriptorPool m_imguiPool{VK_NULL_HANDLE};
 
+        VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
+
         // Synchronizacja
         VkSemaphore m_imageAvailableSemaphore{VK_NULL_HANDLE};
         std::vector<VkSemaphore> m_renderFinishedSemaphores;
@@ -65,6 +67,8 @@ namespace Engine::Renderer
         void waitForInFlightFence();
         uint32_t acquireNextSwapchainImage();
         void beginCommandBuffer();
+
+        void createMaterialSetLayout();
         
         void prepareSwapchainForRendering(uint32_t imageIndex);
         void prepareSwapchainForPresentation(uint32_t imageIndex);
