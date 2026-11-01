@@ -18,8 +18,10 @@ void main() {
         // Top-Right: Normals
         outColor = texture(texNormals, vec2((uv.x - 0.5) * 2.0, (uv.y - 0.5) * 2.0));
     } else if (uv.x < 0.5 && uv.y <= 0.5) {
+        vec2 mv = texture(texMotion, vec2(uv.x * 2.0, uv.y * 2.0)).rg;
+        const float MV_SCALE = 100.0;
         // Bottom-Left: Motion Vectors
-        outColor = texture(texMotion, vec2(uv.x * 2.0, uv.y * 2.0));
+        outColor = vec4(mv * MV_SCALE * 0.5 + 0.5, 0.5, 1.0);
     } else {
        float depth = texture(texDepth, vec2((uv.x - 0.5) * 2.0, uv.y * 2.0)).r;
         

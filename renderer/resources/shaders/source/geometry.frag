@@ -2,7 +2,8 @@
 
 layout(location = 0) in vec2 inUV;
 layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec2 inMotionVector;
+layout(location = 2) in vec4 inCurrClip;
+layout(location = 3) in vec4 inPrevClip;
 
 layout(location = 0) out vec4 outColor;          
 layout(location = 1) out vec4 outNormal;         
@@ -27,7 +28,12 @@ void main() {
         baseColor = vec4(material.diffuse, material.opacity);
     }
 
+    // Normal vectors
+    vec2 curr = inCurrClip.xy / inCurrClip.w;
+    vec2 prev = inPrevClip.xy / inCurrClip.w;
+
+    // Output targers
     outColor         = baseColor;
     outNormal        = vec4(normalize(inNormal) * 0.5f + 0.5f, 1.0f);
-    outMotionVectors = vec4(inMotionVector, 0.0f, 1.0f); // Prawidłowe wektory ruchu
+    outMotionVectors = vec4((curr-prev) * 0.5, 0.0, 1.0);
 }

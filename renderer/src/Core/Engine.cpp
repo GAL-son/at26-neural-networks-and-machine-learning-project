@@ -84,12 +84,14 @@ namespace Engine
     void Engine::runWindowed()
     {
         float cameraRotationDeg = 0;
-        m_camera->setPosition(glm::vec3(10.0f, 10.0f, 10.0f));
+        float cameraPositionX = 0;
+        m_camera->setPosition(glm::vec3(cameraPositionX, 0.0f, 10.0f));
 
         while (!m_window.shouldClose())
         {
             m_camera->updatePreviousVp(); // this saves current vp
-            m_camera->setRotation(0, cameraRotationDeg); // this updates rotation so also should modify vp right?
+            m_camera->setRotation(0, cameraRotationDeg);
+            m_camera->setPosition(glm::vec3(cameraPositionX, 0.0f, 10.0f));
 
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
@@ -107,10 +109,13 @@ namespace Engine
             // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
             m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
 
-            
-            cameraRotationDeg += 5 * m_passTimeMs * 0.001;
+            cameraRotationDeg += 25 * m_passTimeMs * 0.001;
             if (cameraRotationDeg > 360)
                 cameraRotationDeg = 0;
+
+            cameraPositionX += 10 * m_passTimeMs * 0.001;
+            if (cameraPositionX > 100)
+                cameraPositionX = 0;
         }
     }
 }
