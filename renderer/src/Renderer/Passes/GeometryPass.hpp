@@ -46,7 +46,7 @@ namespace Engine::Renderer
     private:
         VkExtent2D m_extent;
 
-        // Zasoby MRT (4 obrazy kolorów)
+        // Render Targets
         std::vector<VkImageView> m_targetImageViews;
         std::vector<VmaAllocation> m_targetAllocations;
 

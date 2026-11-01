@@ -204,7 +204,7 @@ namespace Engine::Renderer
             attachments[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
 
-        // 4. Attachment głębi (przesunięty na indeks 3, ponieważ nie ma już Ground Truth)
+        // 4. Depth buffer
         attachments[3].format = VK_FORMAT_D32_SFLOAT;
         attachments[3].samples = VK_SAMPLE_COUNT_1_BIT;
         attachments[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -569,12 +569,7 @@ namespace Engine::Renderer
         }
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-
-        // Przygotowanie macierzy
         glm::mat4 vp = camera.getProjectionMatrix() * camera.getViewMatrix();
-
-        // Docelowo: przechowuj `prevVp` z poprzedniej klatki w klasie kamery lub renderera.
-        // Na ten moment jako fallback możemy użyć bieżącej macierzy (wektory ruchu będą równe 0 do czasu dodania historii klatek).
         glm::mat4 prevVp = camera.getPreviousVpMatrix();
 
         // Pakujemy obie macierze do struktury Push Constants
