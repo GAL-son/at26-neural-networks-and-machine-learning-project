@@ -17,7 +17,7 @@ layout(push_constant) uniform CompositeParams {
 
 // Helper function to linearize depth values (adjust for your projection matrix if needed)
 float linearizeDepth(float depth) {
-    return (2.0 * params.nearPlane) / (params.farPlane + params.nearPlane - depth * (params.farPlane - params.nearPlane));
+    return params.nearPlane * params.farPlane / (params.farPlane - depth * (params.farPlane - params.nearPlane));
 }
 
 void main() {
@@ -33,7 +33,7 @@ void main() {
         outColor = texture(texNormals, local); // Fixed: 'tecture' -> 'texture', 'texNormal' -> 'texNormals'
     } else if (left) { // Motion Vector
         vec2 mv = texture(texMotion, local).rg;
-        outColor = vec4(mv * params.mvScale * 0.5 + 0.5, 0.0, 1.0);
+        outColor = vec4(mv * params.mvScale * 0.5 + 0.5, 0.5, 1.0);
     } else { // Depth
         float z = linearizeDepth(texture(texDepth, local).r);
         outColor = vec4(vec3(1.0 - clamp(z / params.depthRange, 0.0, 1.0)), 1.0);

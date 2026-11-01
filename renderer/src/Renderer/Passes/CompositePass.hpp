@@ -7,10 +7,10 @@
 namespace Engine::Renderer
 {
     struct CompositeParams {
-        float mvScale = 1;
+        float mvScale = 50.0f;
         float nearPlane;
         float farPlane;
-        float depthRange = 10000.0f;
+        float depthRange = 1000.0f;
     };
 
     class CompositePass : public RenderPass
