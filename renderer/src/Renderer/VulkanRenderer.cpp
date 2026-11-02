@@ -55,13 +55,44 @@ namespace Engine::Renderer
         m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
     }
 
-    void VulkanRenderer::loadScene(const Engine::Scene::Scene &cpuScene)
-    {
-        // Upewniamy się, że GPU nie wykonuje w tym momencie prac renderowania
-        vkDeviceWaitIdle(m_vulkanContext.getDevice());
+    // void VulkanRenderer::loadScene(const Engine::Scene::Scene &cpuScene)
+    // {
+    //     // Upewniamy się, że GPU nie wykonuje w tym momencie prac renderowania
+    //     vkDeviceWaitIdle(m_vulkanContext.getDevice());
 
-        // Tworzymy nową scenę GPU przy użyciu surowej sceny CPU i wspólnego Command Poola
-        m_activeGpuScene = std::make_unique<Renderer::Scene>(m_vulkanContext, m_commandPool, cpuScene, m_materialSetLayout);
+    //     // Tworzymy nową scenę GPU przy użyciu surowej sceny CPU i wspólnego Command Poola
+    //     m_activeGpuScene = std::make_unique<Renderer::Scene>(m_vulkanContext, m_commandPool, cpuScene, m_materialSetLayout);
+    // }
+
+    std::unique_ptr<Renderer::Scene> VulkanRenderer::createGpuScene(const Engine::Scene::Scene &cpuScene) const
+    {
+        VkDevice device = m_vulkanContext.getDevice();
+
+        VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        poolInfo.queueFamilyIndex = m_vulkanContext.getGraphicsQueueFamily();
+
+        VkCommandPool uploadPool;
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &uploadPool) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create command pool for upload");
+
+        try
+        {
+            auto scene = std::make_unique<Renderer::Scene>(m_vulkanContext, uploadPool, cpuScene, m_materialSetLayout);
+            vkDestroyCommandPool(device, uploadPool, nullptr);
+            return scene;
+        }
+        catch (...)
+        {
+            vkDestroyCommandPool(device, uploadPool, nullptr);
+            throw;
+        }
+    }
+
+    void VulkanRenderer::SetScene(std::unique_ptr<Renderer::Scene> scene)
+    {
+        vkWaitForFences(m_vulkanContext.getDevice(), 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
+        m_activeGpuScene = std::move(scene);
     }
 
     void VulkanRenderer::cleanup()
@@ -184,7 +215,10 @@ namespace Engine::Renderer
         prepareSwapchainForRendering(imageIndex);
 
         // C. Composite Pass + UI Overlay
-        m_uiManager.beginFrame();
+        {
+            std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
+            m_uiManager.beginFrame();
+        }
         m_uiManager.renderBufferLabels();
         m_uiManager.renderStats(processedFrames, frameTimeMs, passTimeMs);
 
@@ -217,8 +251,11 @@ namespace Engine::Renderer
         {
             m_compositePass->Render(m_commandBuffer, *m_activeGpuScene, camera);
         }
-        m_uiManager.renderDrawData(m_commandBuffer);
-
+        {
+            std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
+            m_uiManager.renderDrawData(m_commandBuffer);
+        
+        }
         vkCmdEndRendering(m_commandBuffer);
 
         // D. Przygotowanie obrazu do zaprezentowania na ekranie
@@ -231,11 +268,11 @@ namespace Engine::Renderer
         submitCommandBuffer(imageIndex);
         presentSwapchainImage(imageIndex);
 
-        if(!capture)
+        if (!capture)
             return std::nullopt;
 
         vkWaitForFences(m_vulkanContext.getDevice(), 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
-        
+
         Capture::FrameData frame;
         frame.frameIndex = processedFrames;
         frame.ssafactor = kSsaaFactor;
@@ -421,16 +458,16 @@ namespace Engine::Renderer
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, m_inFlightFence) != VK_SUCCESS)
-        {
+        // if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, m_inFlightFence) != VK_SUCCESS)
+        // {
+        //     throw std::runtime_error("Failed to submit draw command buffer!");
+        // }
+        if (m_vulkanContext.submitGraphics(submitInfo, m_inFlightFence) != VK_SUCCESS)
             throw std::runtime_error("Failed to submit draw command buffer!");
-        }
     }
 
     void VulkanRenderer::presentSwapchainImage(uint32_t imageIndex)
     {
-        VkQueue graphicsQueue = m_vulkanContext.getGraphicsQueue();
-
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
@@ -441,6 +478,6 @@ namespace Engine::Renderer
         presentInfo.pSwapchains = swapchains;
         presentInfo.pImageIndices = &imageIndex;
 
-        vkQueuePresentKHR(graphicsQueue, &presentInfo);
+        m_vulkanContext.present(presentInfo);
     }
 }
