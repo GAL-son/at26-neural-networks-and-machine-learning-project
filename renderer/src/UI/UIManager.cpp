@@ -155,11 +155,14 @@ namespace Engine::UI
         const bool loading = !state.loadingScene.empty();
         const bool hasScene = !state.activeScene.empty();
         const bool busy = loading || state.recording;
+        
+        ImGui::SetNextWindowPos(ImVec2(10, 120), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(380, 420), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Dataset capture");
 
         ImGui::BeginDisabled(busy);
         if (ImGui::Button("Chose scenes directory..."))
-            ;
-        actions.choseScenesDir = true;
+            actions.choseScenesDir = true;
 
         ImGui::SameLine();
         if (ImGui::Button("Rescan"))
