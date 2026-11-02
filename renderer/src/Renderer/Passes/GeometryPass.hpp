@@ -28,6 +28,7 @@ namespace Engine::Renderer
         // Gettery do tekstur wyjściowych (dla CompositePass)
         const std::vector<VkImage> &GetTargetImages() const { return m_targetImages; }
         const std::vector<VkImageView> &GetTargetImageViews() const { return m_targetImageViews; }
+        VkImage GetDepthImage() const { return m_depthImage; }
         VkImageView GetDepthImageView() const { return m_depthImageView; }
 
     private:
