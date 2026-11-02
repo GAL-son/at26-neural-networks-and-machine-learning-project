@@ -14,13 +14,13 @@ layout(push_constant) uniform Params {
 void main() {
     ivec2 dst = ivec2(gl_GlobalInvocationID.xy);
     if(any(greaterThanEqual(dst, imageSize(outColor))))
-        return
+        return;
     
-    ivec2 base = sts * params.factor;
-    vec4 sum = vec4(0,0);
+    ivec2 base = dst * params.factor;
+    vec4 sum = vec4(0.0);
 
-    for(int y = 0, y < params.factor; y++) {
-        for(int x = 0, x < params.factor; x++) {
+    for(int y = 0; y < params.factor; y++) {
+        for(int x = 0; x < params.factor; x++) {
             sum += texelFetch(superColor, base + ivec2(x, y), 0);
         }
     }

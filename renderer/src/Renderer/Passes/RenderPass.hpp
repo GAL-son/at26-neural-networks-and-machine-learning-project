@@ -7,6 +7,7 @@
 #include "Renderer/VulkanContext.hpp"
 #include "Renderer/Resources/Scene.hpp"
 #include "Core/Camera.hpp"
+#include "Utils/FileUtils.hpp"
 
 namespace Engine::Renderer
 {
@@ -22,11 +23,11 @@ namespace Engine::Renderer
         virtual void Cleanup() = 0;
 
         virtual void Begin(VkCommandBuffer commandBuffer, VkExtent2D extent) = 0;
-        
-        // Zależnie od potrzeb: = 0 jeśli każdy pass renderuje scenę, 
+
+        // Zależnie od potrzeb: = 0 jeśli każdy pass renderuje scenę,
         // lub puste ciało {} jeśli tylko wybrane passy tego używają.
-        virtual void Render(VkCommandBuffer commandBuffer, Renderer::Scene& scene, Camera& camera) {} 
-        
+        virtual void Render(VkCommandBuffer commandBuffer, Renderer::Scene &scene, Camera &camera) {}
+
         virtual void End(VkCommandBuffer commandBuffer) = 0;
 
         VkRenderPass GetVkRenderPass() const { return m_renderPass; }
@@ -35,10 +36,25 @@ namespace Engine::Renderer
             return m_framebuffers.empty() ? VK_NULL_HANDLE : m_framebuffers[index];
         }
 
+        VkShaderModule LoadShader(const char *path)
+        {
+            auto core = Utils::readFile(path);
+
+            VkShaderModuleCreateInfo createInfo = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+            createInfo.codeSize = core.size();
+            createInfo.pCode = reinterpret_cast<const uint32_t *>(core.data());
+
+            VkShaderModule shaderModule;
+            if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+                throw std::runtime_error("Failed to create shader module");
+
+            return shaderModule;
+        };
+
     protected: // <-- Zmienione z private, żeby klasy pochodne miały dostęp!
         VulkanContext &m_context;
         VkDevice m_device{VK_NULL_HANDLE};
-        
+
         VkRenderPass m_renderPass{VK_NULL_HANDLE};
         std::vector<VkFramebuffer> m_framebuffers;
         std::vector<VkImage> m_targetImages;

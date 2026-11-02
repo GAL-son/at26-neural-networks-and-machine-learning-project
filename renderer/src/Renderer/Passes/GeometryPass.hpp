@@ -12,19 +12,6 @@
 
 namespace Engine::Renderer
 {
-    // Struktura UBO dopasowana do layoutu w shaderze (wyrównanie std140)
-    struct MaterialUniformData
-    {
-        glm::vec3 ambient;
-        float shininess;
-        glm::vec3 diffuse;
-        float opacity;
-        glm::vec3 specular;
-        int32_t hasDiffuseTexture;
-        int32_t pad1; // Wyrównanie do 16 bajtów
-        int32_t pad2;
-    };
-
     class GeometryPass : public RenderPass
     {
     public:

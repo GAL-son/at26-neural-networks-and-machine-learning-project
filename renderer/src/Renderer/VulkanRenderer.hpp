@@ -10,6 +10,7 @@
 #include "Renderer/Resources/Scene.hpp"
 #include "Renderer/Passes/GeometryPass.hpp"
 #include "Renderer/Passes/CompositePass.hpp"
+#include "Renderer/Passes/GroundTruthPass.hpp"
 #include "UI/UIManager.hpp"
 
 namespace Engine::Renderer
@@ -30,6 +31,9 @@ namespace Engine::Renderer
         void renderFrame(Engine::Camera& camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
 
     private:
+        static constexpr uint32_t kSsaaFactor = 4; // 4x4 = SSAA x16
+        bool m_renderGroundTruth = true;
+
         VulkanContext& m_vulkanContext;
         const Window& m_window;
         VkExtent2D m_renderExtent;
@@ -44,6 +48,7 @@ namespace Engine::Renderer
         // Pasy renderowania
         std::unique_ptr<GeometryPass> m_geometryPass;
         std::unique_ptr<CompositePass> m_compositePass;
+        std::unique_ptr<GroundTruthPass> m_groundTruthPass;
 
         // Zarządcza scena GPU
         std::unique_ptr<Renderer::Scene> m_activeGpuScene;

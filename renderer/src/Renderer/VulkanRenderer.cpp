@@ -26,12 +26,16 @@ namespace Engine::Renderer
         createCommandBuffers();
         createSampler();
         createSyncPrimitives();
+        createMaterialSetLayout();
 
         VkExtent2D displayExtent = m_vulkanContext.getSwapchainExtent();
 
         // 1. Tworzenie i inicjalizacja GeometryPass
-        m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, m_renderExtent);
+        m_geometryPass = std::make_unique<GeometryPass>(m_vulkanContext, m_renderExtent, m_materialSetLayout);
         m_geometryPass->Create();
+
+        m_groundTruthPass = std::make_unique<GroundTruthPass>(m_vulkanContext, m_renderExtent, kSsaaFactor, m_materialSetLayout);
+        m_groundTruthPass->Create();
 
         // 2. Pobieramy widoki kolorów i doklejamy na koniec widok głębi
         std::vector<VkImageView> compositeInputViews = m_geometryPass->GetTargetImageViews(); // 3 bufory kolorów
@@ -55,7 +59,7 @@ namespace Engine::Renderer
         vkDeviceWaitIdle(m_vulkanContext.getDevice());
 
         // Tworzymy nową scenę GPU przy użyciu surowej sceny CPU i wspólnego Command Poola
-        m_activeGpuScene = std::make_unique<Renderer::Scene>(m_vulkanContext, m_commandPool, cpuScene);
+        m_activeGpuScene = std::make_unique<Renderer::Scene>(m_vulkanContext, m_commandPool, cpuScene, m_materialSetLayout);
     }
 
     void VulkanRenderer::cleanup()
@@ -81,7 +85,17 @@ namespace Engine::Renderer
             m_geometryPass.reset();
         }
 
+        if(m_groundTruthPass)
+        {
+            m_groundTruthPass->Cleanup();
+            m_groundTruthPass.reset();
+        }
+        
         m_uiManager.shutdown(m_vulkanContext, m_imguiPool);
+
+        if(m_materialSetLayout) {
+            vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
+        }
 
         // 2. Dopiero na końcu reszta zasobów logicznych Vulcana (samplery, semafory itp.)
         if (m_defaultSampler)
@@ -123,6 +137,13 @@ namespace Engine::Renderer
             m_geometryPass->Render(m_commandBuffer, *m_activeGpuScene, camera);
         }
         m_geometryPass->End(m_commandBuffer);
+
+        if(m_renderGroundTruth && m_activeGpuScene) {
+            m_groundTruthPass->Begin(m_commandBuffer, m_renderExtent);
+            m_groundTruthPass->Render(m_commandBuffer, *m_activeGpuScene, camera);
+            m_groundTruthPass->End(m_commandBuffer);
+        }
+
 
         // B. Przygotowanie swapchaina pod rendering kompozycji oraz UI
         prepareSwapchainForRendering(imageIndex);

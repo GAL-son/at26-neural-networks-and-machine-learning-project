@@ -17,13 +17,13 @@ namespace Engine::Renderer
         void Create() override;
         void Cleanup() override;
 
-        void Begin(VkCommandBuffer commandBuffer, VkExtent2D extent) override;
+        void Begin(VkCommandBuffer commandBuffer, VkExtent2D /*extent*/) override;
         void Render(VkCommandBuffer commandBuffer, Renderer::Scene &scene, Camera &camera) override;
         void End(VkCommandBuffer commandBuffer) override;
 
-        VkImage GetOutputImage() const { return m_output.image };
-        VkImageView GetOutputView() const { return m_output.view };
-        VkExtent2D getOutputExtent() const { return m_outputExtent };
+        VkImage GetOutputImage() const { return m_output.image; };
+        VkImageView GetOutputView() const { return m_output.view; };
+        VkExtent2D getOutputExtent() const { return m_outputExtent; };
 
     private:
         struct AllocatedImage
@@ -34,7 +34,7 @@ namespace Engine::Renderer
         };
 
         VkExtent2D m_outputExtent;
-        VkExtent2D m_superExtend;
+        VkExtent2D m_superExtent;
         uint32_t m_ssaaFactor;
         VkDescriptorSetLayout m_materialSetLayout;
 
@@ -42,20 +42,22 @@ namespace Engine::Renderer
         AllocatedImage m_superDepth;
         AllocatedImage m_output;
 
+        VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
+        VkPipeline m_pipeline{VK_NULL_HANDLE};
+
         VkDescriptorSetLayout m_downsampleSetLayout{VK_NULL_HANDLE};
-        VkDescriptorPool m_downsamlePool{VK_NULL_HANDLE};
-        VkDescriptorSet m_downsamleSet{VK_NULL_HANDLE};
+        VkDescriptorPool m_downsamplePool{VK_NULL_HANDLE};
+        VkDescriptorSet m_downsampleSet{VK_NULL_HANDLE};
         VkPipelineLayout m_downsamplePipelineLayout{VK_NULL_HANDLE};
         VkPipeline m_downsamplePipeline{VK_NULL_HANDLE};
 
         void ValidateLimits() const;
         AllocatedImage CreateImage(VkFormat format, VkExtent2D extent, VkImageUsageFlags usage, VkImageAspectFlags aspect);
         void DestroyImage(AllocatedImage &image);
-        VkShaderModule LoadShader(const char *path);
 
-        void CreateAttachments();
         void CreateRenderPassCustom();
         void CreateFramebufferCustom();
-        void CreatePipelineCustom();
-    }
+        void CreateGraphicsPipeline();
+        void CreateDownsamplePipeline();
+    };
 }
