@@ -3,6 +3,8 @@
 #include "Window.hpp"
 
 #include <chrono>
+#include <future>
+#include <filesystem>
 
 #include "../Scene/Scene.hpp"
 
@@ -24,7 +26,8 @@ namespace Engine
         void runHeadless();
         void runWindowed();
 
-        std::unique_ptr<Scene::Scene> m_scene;
+        void requestSceneLoad(const std::filesystem::path &objPath);
+        void poolSceneLoad();
 
         bool m_headless;
         Window m_window;
@@ -40,5 +43,8 @@ namespace Engine
 
         std::unique_ptr<IO::ExrFrameWriter> m_frameWriter;
         bool m_recording = false;
+
+        std::future<std::unique_ptr<Renderer::Scene>> m_pendingScene;
+        std::filesystem::path m_pendingScenePath;
     };
 }

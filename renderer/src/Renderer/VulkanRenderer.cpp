@@ -80,7 +80,7 @@ namespace Engine::Renderer
         {
             auto scene = std::make_unique<Renderer::Scene>(m_vulkanContext, uploadPool, cpuScene, m_materialSetLayout);
             vkDestroyCommandPool(device, uploadPool, nullptr);
-            return;
+            return scene;
         }
         catch (...)
         {
