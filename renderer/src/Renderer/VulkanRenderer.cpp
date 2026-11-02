@@ -215,7 +215,10 @@ namespace Engine::Renderer
         prepareSwapchainForRendering(imageIndex);
 
         // C. Composite Pass + UI Overlay
-        m_uiManager.beginFrame();
+        {
+            std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
+            m_uiManager.beginFrame();
+        }
         m_uiManager.renderBufferLabels();
         m_uiManager.renderStats(processedFrames, frameTimeMs, passTimeMs);
 
@@ -248,8 +251,11 @@ namespace Engine::Renderer
         {
             m_compositePass->Render(m_commandBuffer, *m_activeGpuScene, camera);
         }
-        m_uiManager.renderDrawData(m_commandBuffer);
-
+        {
+            std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
+            m_uiManager.renderDrawData(m_commandBuffer);
+        
+        }
         vkCmdEndRendering(m_commandBuffer);
 
         // D. Przygotowanie obrazu do zaprezentowania na ekranie
