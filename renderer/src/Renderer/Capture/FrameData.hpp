@@ -22,6 +22,6 @@ namespace Engine::Capture
         std::vector<uint16_t> normals; // R16G16B16A16_SFLOAT
         std::vector<uint16_t> motion;  // R16G16_SFLOAT
         std::vector<float> depth;      // D32_SFLOAT
-        std::vector<uint8_t> gt;       // R16G16B16A16_SFLOAT
+        std::vector<uint16_t> gt;       // R16G16B16A16_SFLOAT
     };
 } // namesapce Engine::Capture
