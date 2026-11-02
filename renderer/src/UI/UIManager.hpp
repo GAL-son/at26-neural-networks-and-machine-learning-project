@@ -12,6 +12,8 @@
 #include "Renderer/VulkanContext.hpp"
 #include "Utils/Macros.hpp"
 
+struct ImDrawData;
+
 namespace Engine::UI
 {
     struct ControlPanelState {
@@ -20,8 +22,8 @@ namespace Engine::UI
         const std::filesystem::path &activeScene;
         const std::filesystem::path &loadingScene;
         const std::string &error;
-        bool generatedPath;
         bool recording;
+        bool generatedPath;
         uint32_t animationFrame;
         uint32_t animatioFrameCount;
     };
@@ -48,7 +50,7 @@ namespace Engine::UI
         void renderBufferLabels();
 
         ControlPanelActions renderControlPanel(const ControlPanelState &state);
-        ImDrawData *endFrame();
+        ImDrawData* endFrame();
 
         static std::optional<std::filesystem::path> PickDirectory(const std::filesystem::path &start);
 

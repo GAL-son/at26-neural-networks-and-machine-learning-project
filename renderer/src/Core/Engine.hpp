@@ -59,7 +59,7 @@ namespace Engine
 
         std::unique_ptr<Camera> m_camera;
 
-        std::filesystem::path m_scenesDir = scenes;
+        std::filesystem::path m_scenesDir;
         std::vector<std::filesystem::path> m_sceneFiles;
         std::filesystem::path m_activeScenePath;
         std::string m_sceneError;

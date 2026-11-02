@@ -43,7 +43,7 @@ namespace Engine::Utils
 
             std::string ext = it->path().extension().string();
             std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {return char(std::tolower(c)); });
-            if(ext == ".obj");
+            if(ext == ".obj")
                 result.push_back(it->path());
         }
 

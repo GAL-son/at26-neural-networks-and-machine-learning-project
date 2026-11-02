@@ -30,15 +30,15 @@ namespace Engine::Renderer
 
         // Zarządzanie sceną GPU
         // void loadScene(const Engine::Scene::Scene &cpuScene);
-        std::unique_ptr<Renderer::Scene> createGpuScene(const Engine::Scene::Scene &cpuScene) const;
+        std::unique_ptr<Renderer::Scene> createGpuScene(const ::Engine::Scene::Scene &cpuScene) const;
         void SetScene(std::unique_ptr<Renderer::Scene> scene);
         bool hasScene() const { return m_activeGpuScene != nullptr; };
 
         // Główna pętla renderowania
         std::optional<Capture::FrameData> renderFrame(
-            Engine::Camera &camera,
+            ::Engine::Camera &camera,
             bool capture = false,
-            ImDrawData *uiDrawData
+            ImDrawData *uiDrawData = nullptr
         );
 
     private:
