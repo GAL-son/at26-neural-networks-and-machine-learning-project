@@ -105,7 +105,7 @@ namespace Engine::IO
                 albedo[i * albedoChannels + c] = Imath::half(frame.albedo[1 * 4 + c] / 255.0f);
 
         // Depth [0,1] -> background = farplane
-        std::vector<Imath::half> depth(pixelCount);
+        std::vector<float> depth(pixelCount);
         for (size_t i = 0; i < pixelCount; ++i)
             depth[i] = frame.nearPlane * frame.farPlane / (frame.farPlane - frame.depth[i] * (frame.farPlane - frame.nearPlane));
 
@@ -147,7 +147,7 @@ namespace Engine::IO
         addLayer("albedo", {"R", "G", "B"}, Imf::HALF, albedo.data(), 2, 3);
         addLayer("normal", {"X", "Y", "Z"}, Imf::HALF, frame.normals.data(), 2, 4); // GPU RGB16F, A skipped
         addLayer("motion", {"X", "Y"}, Imf::HALF, frame.motion.data(), 2, 2);
-        addLayer("depth", {"Z"}, Imf::HALF, depth.data(), 4, 1);
+        addLayer("depth", {"Z"}, Imf::FLOAT, depth.data(), 4, 1);
         addLayer("ground-truth", {"R", "G", "B"}, Imf::HALF, frame.gt.data(), 2, 4); // GPU RGB16F, A skipped
 
         Imf::OutputFile file(path.string().c_str(), header);
