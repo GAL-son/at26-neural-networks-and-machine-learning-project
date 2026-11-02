@@ -77,3 +77,11 @@ add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
         "$<TARGET_FILE_DIR:${TARGET_NAME}>/scenes"
     COMMENT "Copying scenes to build destination..."
 )
+
+# Copy config.json
+add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+        "$<TARGET_FILE_DIR:${TARGET_NAME}>/config.json"
+    COMMENT "Copying config.json to build destination..."
+)

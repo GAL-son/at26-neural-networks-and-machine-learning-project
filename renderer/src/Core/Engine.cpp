@@ -5,6 +5,8 @@
 
 #include "Utils/FileUtils.hpp"
 #include "Utils/Models/ObjLoader.hpp"
+#include "Config/HeadlessConfig.hpp"
+#include "UI/ConsoleProgess.hpp"
 
 namespace Engine
 {
@@ -19,19 +21,18 @@ namespace Engine
         }
     }
 
-    Engine::Engine(bool headless)
-        : m_headless(headless),
-          m_window(1280, 720, "AI Antialiaser Renderer", headless),
+    Engine::Engine(const LaunchOptions &options)
+        : m_options(options),
+          m_window(1280, 720, "AI Antialiaser Renderer", options.headless),
           m_vulkanContext(m_window),
-          m_renderer(m_vulkanContext, VkExtent2D{1920, 1080})
+          m_renderer(m_vulkanContext, kRenderExtent)
     {
         m_renderer.init();
 
-        if (!m_headless)
+        if (!m_options.headless)
             m_ui = std::make_unique<UI::UIManager>(m_window, m_vulkanContext);
 
-        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
-        float aspectRatio = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        float aspectRatio = float(kRenderExtent.width) / float(kRenderExtent.height);
         m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 10000.0f);
     }
 
@@ -154,53 +155,89 @@ namespace Engine
             rescanScenes();
         }
 
-        if(actions.loadScene)
+        if (actions.loadScene)
             requestSceneLoad(*actions.loadScene);
-        if(actions.stopRecording)
+        if (actions.stopRecording)
             stopRecording();
-        if(actions.startRecording)
+        if (actions.startRecording)
             startRecording();
     }
 
-    void Engine::run()
+    int Engine::run()
     {
-        std::cout << "Running loop in " << (m_headless ? "HEADLESS" : "WINDOWED") << " mode...\n";
+        std::cout << "Running in " << (m_options.headless ? "HEADLESS" : "WINDOWED") << " mode...\n";
         m_lastTime = std::chrono::high_resolution_clock::now();
 
-        if (m_headless)
-        {
-            runHeadless();
-        }
-        else
-        {
-            runWindowed();
-        }
+        if (m_options.headless)
+            return runHeadless();
+
+        runWindowed();
+        return EXIT_SUCCESS;
     }
 
-    void Engine::runHeadless()
+    void Engine::renderSceneFrame(ImDrawData *uiDrawData)
     {
-        while (!m_window.shouldClose())
+        applyCameraPose();
+        auto frame = m_renderer.renderFrame(*m_camera, m_recording, uiDrawData);
+        if (frame && m_frameWriter)
         {
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
-            m_lastTime = currentTime;
-
-            m_frameTimeMs = delta.count();
-            m_passTimeMs = m_frameTimeMs * 0.75f;
-            m_processedFrames++;
-
-            m_window.pollEvents();
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-            if (m_processedFrames > 150)
-                break;
+            frame->frameIndex = m_animationFrame;
+            m_frameWriter->Submit(std::move(*frame));
         }
-        std::cout << "Headless batch generation complete. Exiting.\n";
+
+        advanceAnimation();
+    }
+
+    int Engine::runHeadless()
+    {
+        const HeadlessConfig config = HeadlessConfig::Load(m_options.configPath);
+        m_scenesDir = config.scenesDir;
+        m_outputRoot = config.outputDir;
+
+        std::cout << "Recording " << config.scenes.size() << " scene(s) into " << m_outputRoot << std::endl;
+
+        UI::ConsoleProgress progress(config.scenes.size());
+        size_t failedScenes = 0;
+
+        for (size_t i = 0; i < config.scenes.size(); ++i)
+        {
+            progress.beginScene(i, SceneOutputName(config.scenes[i]));
+
+            requestSceneLoad(config.scenes[i]);
+            while (m_pendingScene.valid()) {
+                poolSceneLoad();
+                if(m_pendingScene.valid()) {
+                    progress.loading();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+
+            if(m_activeScenePath.empty()) {
+                progress.failed(m_sceneError);
+                ++failedScenes;
+                continue;
+            }
+
+            uint32_t total = static_cast<uint32_t>(m_cameraPath.frames.size());
+            startRecording();
+            progress.recordingStarted();
+
+            uint32_t done = 0;
+            while(m_recording) {
+                renderSceneFrame(nullptr);
+                progress.recording(++done, total);
+            }
+            progress.finished(total);
+        }
+
+        std::cout << "All scenes processed: " << (config.scenes.size() - failedScenes) << " recorded " << failedScenes << " failed. Exiting" << std::endl;
+        return failedScenes == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     void Engine::runWindowed()
     {
         rescanScenes();
-        
+
         while (!m_window.shouldClose())
         {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -217,30 +254,19 @@ namespace Engine
             m_ui->beginFrame();
             m_ui->renderBufferLabels();
             m_ui->renderStats(m_processedFrames, m_frameTimeMs, m_passTimeMs);
-            const UI::ControlPanelActions actions = m_ui->renderControlPanel({
-                m_scenesDir,
-                m_sceneFiles,
-                m_activeScenePath,
-                m_pendingScenePath,
-                m_sceneError,
-                m_recording,
-                m_cameraPath.generated,
-                m_animationFrame,
-                static_cast<uint32_t>(m_cameraPath.frames.size())
-            });
+            const UI::ControlPanelActions actions = m_ui->renderControlPanel({m_scenesDir,
+                                                                              m_sceneFiles,
+                                                                              m_activeScenePath,
+                                                                              m_pendingScenePath,
+                                                                              m_sceneError,
+                                                                              m_recording,
+                                                                              m_cameraPath.generated,
+                                                                              m_animationFrame,
+                                                                              static_cast<uint32_t>(m_cameraPath.frames.size())});
             ImDrawData *drawData = m_ui->endFrame();
 
             handleUiActions(actions);
-        
-            applyCameraPose();
-            auto frame = m_renderer.renderFrame(*m_camera, m_recording, drawData);
-            if (frame)
-            {
-                frame->frameIndex = m_animationFrame;
-                m_frameWriter->Submit(std::move(*frame));
-            }
-
-            advanceAnimation();
+            renderSceneFrame(drawData);
         }
 
         stopRecording();
