@@ -28,7 +28,10 @@ namespace Engine::Renderer
         void cleanup();
 
         // Zarządzanie sceną GPU
-        void loadScene(const Engine::Scene::Scene &cpuScene);
+        // void loadScene(const Engine::Scene::Scene &cpuScene);
+        std::unique_ptr<Renderer::Scene> createGpuScene(const Engine::Scene::Scene &cpuScene) const;
+        void SetScene(std::unique_ptr<Renderer::Scene> scene);
+        bool hasScene() const { return m_activeGpuScene != nullptr; };
 
         // Główna pętla renderowania
         std::optional<Capture::FrameData> renderFrame(
@@ -36,8 +39,7 @@ namespace Engine::Renderer
             uint32_t processedFrames,
             float frameTimeMs,
             float passTimeMs,
-            bool capture = false
-        );
+            bool capture = false);
 
     private:
         static constexpr uint32_t kSsaaFactor = 4; // 4x4 = SSAA x16
