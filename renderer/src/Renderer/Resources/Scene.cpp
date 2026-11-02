@@ -31,6 +31,14 @@ namespace Engine::Renderer
             m_gpuMeshes.push_back(std::make_unique<Mesh>(m_allocator, cpuMesh));
         }
 
+        Engine::Scene::Texture white;
+        white.name = "fallback_white";
+        white.width = white.height = 1;
+        white.channels = 4;
+        white.pixels = {255, 255, 255, 255};
+        white.loadedSuccessfully = true;
+        m_fallbackTexture = std::make_unique<Texture>(context, commandPool, white);
+
         CreateMaterialResources(materialSetLayout);
     }
 

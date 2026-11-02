@@ -2,16 +2,15 @@
 #include <stdexcept>
 #include <iostream>
 
+#include <imgui_impl_vulkan.h>
+
 namespace Engine::Renderer
 {
     VulkanRenderer::VulkanRenderer(
         VulkanContext &vulkanContext,
-        const Window &window,
-        unsigned int renderResolutionX,
-        unsigned int renderResolutionY)
+        VkExtent2D renderExtent)
         : m_vulkanContext(vulkanContext),
-          m_window(window),
-          m_renderExtent(VkExtent2D{renderResolutionX, renderResolutionY})
+          m_renderExtent(renderExtent)
     {
     }
 
@@ -50,9 +49,6 @@ namespace Engine::Renderer
             compositeInputViews, // <-- Przekazujemy 3 kolory + 1 głębię
             m_defaultSampler);
         m_compositePass->Create();
-
-        // 4. Inicjalizacja UI
-        m_uiManager.init(m_window, m_vulkanContext, m_imguiPool);
     }
 
     // void VulkanRenderer::loadScene(const Engine::Scene::Scene &cpuScene)
@@ -124,8 +120,6 @@ namespace Engine::Renderer
             m_groundTruthPass.reset();
         }
 
-        m_uiManager.shutdown(m_vulkanContext, m_imguiPool);
-
         if (m_materialSetLayout)
         {
             vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
@@ -176,10 +170,8 @@ namespace Engine::Renderer
 
     std::optional<Capture::FrameData> VulkanRenderer::renderFrame(
         Engine::Camera &camera,
-        uint32_t processedFrames,
-        float frameTimeMs,
-        float passTimeMs,
-        bool capture)
+        bool capture,
+        ImDrawData *uiDrawData)
     {
 
         capture = capture && m_activeGpuScene;
@@ -217,10 +209,7 @@ namespace Engine::Renderer
         // C. Composite Pass + UI Overlay
         {
             std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
-            m_uiManager.beginFrame();
         }
-        m_uiManager.renderBufferLabels();
-        m_uiManager.renderStats(processedFrames, frameTimeMs, passTimeMs);
 
         VkRenderingAttachmentInfo colorAttachmentInfo{};
         colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -253,8 +242,7 @@ namespace Engine::Renderer
         }
         {
             std::lock_guard<std::mutex> lock(m_vulkanContext.getQueueMutex());
-            m_uiManager.renderDrawData(m_commandBuffer);
-        
+            ImGui_ImplVulkan_RenderDrawData(uiDrawData, m_commandBuffer);
         }
         vkCmdEndRendering(m_commandBuffer);
 
@@ -274,7 +262,6 @@ namespace Engine::Renderer
         vkWaitForFences(m_vulkanContext.getDevice(), 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
 
         Capture::FrameData frame;
-        frame.frameIndex = processedFrames;
         frame.ssafactor = kSsaaFactor;
         frame.nearPlane = camera.getNearPlane();
         frame.farPlane = camera.getFarPlane();

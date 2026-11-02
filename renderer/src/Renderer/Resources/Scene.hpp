@@ -50,6 +50,8 @@ namespace Engine::Renderer
         std::vector<Engine::Scene::Material> m_gpuMaterials; // Czyste dane mtl (kolory, indeksy tekstur)
         std::vector<std::unique_ptr<Texture>> m_gpuTextures;
 
+        std::unique_ptr<Texture> m_fallbackTexture;
+
         void CreateMaterialResources(VkDescriptorSetLayout materialSetLayout);
     };
 }

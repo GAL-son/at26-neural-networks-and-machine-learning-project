@@ -1,11 +1,24 @@
 #include "Engine.hpp"
+
 #include <iostream>
 #include <thread>
 
+#include "Utils/FileUtils.hpp"
 #include "Utils/Models/ObjLoader.hpp"
 
 namespace Engine
 {
+    namespace
+    {
+        std::string SceneOutputName(const std::filesystem::path &objPath)
+        {
+            const std::string folder = objPath.parent_path().filename().string();
+            const std::string stem = objPath.stem().string();
+
+            return folder.empty() ? stem : folder + "_" + stem;
+        }
+    }
+
     Engine::Engine(bool headless)
         : m_headless(headless),
           m_window(1280, 720, "AI Antialiaser Renderer", headless),
@@ -14,24 +27,24 @@ namespace Engine
     {
         m_renderer.init();
 
+        if (!m_headless)
+            m_ui = std::make_unique<UI::UIManager>(m_window, m_vulkanContext);
+
         VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
         float aspectRatio = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-
         m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 10000.0f);
-        m_camera->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-
-        requestSceneLoad("scenes/bedroom/iscv2.obj");
-        // requestSceneLoad("scenes/sponza/sponza.obj");
     }
 
     Engine::~Engine() = default; // RAII dba o czyszczenie zasobów w m_renderer i m_scene!
 
     void Engine::requestSceneLoad(const std::filesystem::path &objPath)
     {
-        if (m_pendingScene.valid())
+        if (m_pendingScene.valid() || m_recording)
             return;
 
         m_renderer.SetScene(nullptr);
+        m_activeScenePath.clear();
+        m_sceneError.clear();
         m_cameraPath = {};
         m_animationFrame = 0;
         m_pendingScenePath = objPath;
@@ -57,10 +70,12 @@ namespace Engine
             m_renderer.SetScene(std::move(loaded.gpuScene));
             m_cameraPath = std::move(loaded.cameraPath);
             m_animationFrame = 0;
+            m_activeScenePath = m_pendingScenePath;
             std::cout << "Scene ready: " << m_pendingScenePath << std::endl;
         }
         catch (const std::exception &e)
         {
+            m_sceneError = e.what();
             std::cout << "Exception thrown while loading scene: " << e.what() << std::endl;
         }
         m_pendingScenePath.clear();
@@ -91,12 +106,60 @@ namespace Engine
         {
             m_animationFrame = 0;
 
-            if(m_recording) {
-                m_recording = false;
-                m_frameWriter.reset();
-                std::cout << "Finished Recording " << m_cameraPath.frames.size() << " frames" << std::endl;
+            if (m_recording)
+            {
+                stopRecording();
             }
         }
+    }
+
+    void Engine::startRecording()
+    {
+        if (m_recording || m_activeScenePath.empty() || m_cameraPath.empty())
+            return;
+
+        m_frameWriter = std::make_unique<IO::ExrFrameWriter>(m_outputRoot / SceneOutputName(m_activeScenePath));
+        m_animationFrame = 0;
+        m_recording = true;
+        std::cout << "Recording " << m_cameraPath.frames.size() << " frames of" << m_activeScenePath << std::endl;
+    }
+
+    void Engine::stopRecording()
+    {
+        if (!m_recording)
+            return;
+
+        m_recording = false;
+        m_frameWriter.reset();
+        std::cout << "Stopped recording" << std::endl;
+    }
+
+    void Engine::rescanScenes()
+    {
+        m_sceneFiles = Utils::FindObjFiles(m_scenesDir);
+    }
+
+    void Engine::handleUiActions(const UI::ControlPanelActions &actions)
+    {
+        if (actions.choseScenesDir)
+        {
+            if (auto dir = UI::UIManager::PickDirectory(m_scenesDir))
+            {
+                m_scenesDir = *dir;
+                rescanScenes();
+            }
+        }
+        else if (actions.rescan)
+        {
+            rescanScenes();
+        }
+
+        if(actions.loadScene)
+            requestSceneLoad(*actions.loadScene);
+        if(actions.stopRecording)
+            stopRecording();
+        if(actions.startRecording)
+            startRecording();
     }
 
     void Engine::run()
@@ -136,10 +199,8 @@ namespace Engine
 
     void Engine::runWindowed()
     {
-        float cameraRotationDeg = 0;
-        float cameraPositionX = 0;
-        m_camera->setPosition(glm::vec3(cameraPositionX, 20.0f, 20.0f));
-
+        rescanScenes();
+        
         while (!m_window.shouldClose())
         {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -153,17 +214,35 @@ namespace Engine
             m_window.pollEvents();
             poolSceneLoad();
 
+            m_ui->beginFrame();
+            m_ui->renderBufferLabels();
+            m_ui->renderStats(m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            const UI::ControlPanelActions actions = m_ui->renderControlPanel({
+                m_scenesDir,
+                m_sceneFiles,
+                m_activeScenePath,
+                m_pendingScenePath,
+                m_sceneError,
+                m_recording,
+                m_cameraPath.generated,
+                m_animationFrame,
+                static_cast<uint32_t>(m_cameraPath.frames.size())
+            });
+            ImDrawData *drawData = m_ui->endFrame();
+
+            handleUiActions(actions);
+        
             applyCameraPose();
-            auto frame = m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs, m_recording);
+            auto frame = m_renderer.renderFrame(*m_camera, m_recording, drawData);
             if (frame)
             {
-                if (!m_frameWriter)
-                    m_frameWriter = std::make_unique<IO::ExrFrameWriter>("captures");
                 frame->frameIndex = m_animationFrame;
                 m_frameWriter->Submit(std::move(*frame));
             }
 
             advanceAnimation();
         }
+
+        stopRecording();
     }
 }
