@@ -211,7 +211,7 @@ namespace Engine::Renderer
 
         std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
         attributeDescriptions[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Engine::Scene::Vertex, position)};
-        attributeDescriptions[2] = {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Engine::Scene::Vertex, texCoord)};
+        attributeDescriptions[1] = {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Engine::Scene::Vertex, texCoord)};
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
