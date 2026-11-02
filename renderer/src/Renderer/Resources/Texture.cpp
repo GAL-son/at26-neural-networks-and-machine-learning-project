@@ -27,17 +27,24 @@ namespace Engine::Renderer
         return commandBuffer;
     }
 
-    void EndSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkCommandBuffer commandBuffer) {
+    void EndSingleTimeCommands(VulkanContext &context, VkCommandPool commandPool, VkQueue graphicsQueue, VkCommandBuffer commandBuffer) {
+        VkDevice device = context.getDevice();
         vkEndCommandBuffer(commandBuffer);
 
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        VkFence fence;
+        vkCreateFence(device, &fenceInfo, nullptr, &fence);
+
+        VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(graphicsQueue); // Czekamy, aż operacja kopiowania się zakończy
+        if(context.submitGraphics(submitInfo, fence) != VK_SUCCESS)
+            throw std::runtime_error("Texture upload submit failed");
 
+        vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+
+        vkDestroyFence(device, fence, nullptr);
         vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
     }
 
@@ -145,7 +152,7 @@ namespace Engine::Renderer
             1, &barrier2
         );
 
-        EndSingleTimeCommands(context.getDevice(), commandPool, context.getGraphicsQueue(), commandBuffer);
+        EndSingleTimeCommands(context, commandPool, context.getGraphicsQueue(), commandBuffer);
         // Do not need to clean buffer in unique_ptr
 
         VkImageViewCreateInfo viewInfo{};
