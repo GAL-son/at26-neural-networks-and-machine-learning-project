@@ -8,7 +8,7 @@
 namespace Engine::Renderer
 {
     GeometryPass::GeometryPass(VulkanContext &context, VkExtent2D extent, VkDescriptorSetLayout materialSetLayout)
-        : RenderPass(context), m_extent(extent)
+        : RenderPass(context), m_extent(extent), m_materialSetLayout(materialSetLayout)
     {
     }
 
@@ -22,18 +22,6 @@ namespace Engine::Renderer
 
     void GeometryPass::Cleanup()
     {
-        if (m_descriptorPool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-            m_descriptorPool = VK_NULL_HANDLE;
-        }
-
-        if (m_descriptorSetLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-            m_descriptorSetLayout = VK_NULL_HANDLE;
-        }
-
         if (m_pipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(m_device, m_pipeline, nullptr);
@@ -274,32 +262,6 @@ namespace Engine::Renderer
 
     void GeometryPass::CreatePipelineCustom()
     {
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
-
-        // Binding 0: UBO materiału
-        bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        bindings[0].descriptorCount = 1;
-        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[0].pImmutableSamplers = nullptr;
-
-        // Binding 1: Tekstura diffuse
-        bindings[1].binding = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        bindings[1].descriptorCount = 1;
-        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[1].pImmutableSamplers = nullptr;
-
-        VkDescriptorSetLayoutCreateInfo setLayoutInfo{};
-        setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        setLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        setLayoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(m_device, &setLayoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create geometry descriptor set layout!");
-        }
-
         VkPushConstantRange pushConstantRange{};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         pushConstantRange.offset = 0;
@@ -308,7 +270,7 @@ namespace Engine::Renderer
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &m_materialSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 

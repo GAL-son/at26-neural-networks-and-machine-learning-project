@@ -43,10 +43,9 @@ namespace Engine::Renderer
         VmaAllocation m_depthAllocation{VK_NULL_HANDLE};
 
         // Pipeline i Layout
-        VkPipeline m_pipeline{VK_NULL_HANDLE};
         VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
-        VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
-        VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
+        VkPipeline m_pipeline{VK_NULL_HANDLE};
+        VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 
         void CreateAttachments();
         void CreateRenderPassCustom();

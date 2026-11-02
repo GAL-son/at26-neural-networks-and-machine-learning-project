@@ -33,7 +33,7 @@ namespace Engine::Renderer
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT);
         m_output = CreateImage(
-            VK_FORMAT_R16G16B16_SFLOAT,
+            VK_FORMAT_R16G16B16A16_SFLOAT,
             m_outputExtent,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             VK_IMAGE_ASPECT_COLOR_BIT),
@@ -180,41 +180,15 @@ namespace Engine::Renderer
 
     void GroundTruthPass::CreateGraphicsPipeline()
     {
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
-
-        // Binding 0: UBO materiału
-        bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        bindings[0].descriptorCount = 1;
-        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[0].pImmutableSamplers = nullptr;
-
-        // Binding 1: Tekstura diffuse
-        bindings[1].binding = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        bindings[1].descriptorCount = 1;
-        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[1].pImmutableSamplers = nullptr;
-
-        VkDescriptorSetLayoutCreateInfo setLayoutInfo{};
-        setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        setLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        setLayoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(m_device, &setLayoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create geometry descriptor set layout!");
-        }
-
-        VkPushConstantRange pushConstantRange{};
+         VkPushConstantRange pushConstantRange{};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         pushConstantRange.offset = 0;
-        pushConstantRange.size = sizeof(glm::mat4);
+        pushConstantRange.size = sizeof(glm::mat4) * 2;
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &m_materialSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 

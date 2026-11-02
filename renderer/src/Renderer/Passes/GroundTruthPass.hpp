@@ -36,7 +36,6 @@ namespace Engine::Renderer
         VkExtent2D m_outputExtent;
         VkExtent2D m_superExtent;
         uint32_t m_ssaaFactor;
-        VkDescriptorSetLayout m_materialSetLayout;
 
         AllocatedImage m_superColor;
         AllocatedImage m_superDepth;
@@ -44,6 +43,7 @@ namespace Engine::Renderer
 
         VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
         VkPipeline m_pipeline{VK_NULL_HANDLE};
+        VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 
         VkDescriptorSetLayout m_downsampleSetLayout{VK_NULL_HANDLE};
         VkDescriptorPool m_downsamplePool{VK_NULL_HANDLE};
