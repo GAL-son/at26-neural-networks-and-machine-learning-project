@@ -1,0 +1,8 @@
+{
+    "scenesDir": "scenes",
+    "scenes" :[
+        "bedroom/iscv2.obj",
+        "sponza/sponza.obj"
+    ],
+    "outputDir": "captures"
+}

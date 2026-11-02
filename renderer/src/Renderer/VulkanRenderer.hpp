@@ -60,6 +60,8 @@ namespace Engine::Renderer
         std::unique_ptr<CompositePass> m_compositePass;
         std::unique_ptr<GroundTruthPass> m_groundTruthPass;
 
+        bool m_presentEnabled;
+
         // Zarządcza scena GPU
         std::unique_ptr<Renderer::Scene> m_activeGpuScene;
         VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
@@ -96,5 +98,8 @@ namespace Engine::Renderer
 
         void submitCommandBuffer(uint32_t imageIndex);
         void presentSwapchainImage(uint32_t imageIndex);
+
+        void recordPresentation(uint32_t imageIndex, ::Engine::Camera &camera, ImDrawData *uiDrawData);
+        void submitCommandBuffer(const uint32_t *imageIndex);
     };
 }

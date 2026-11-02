@@ -17,7 +17,14 @@
 
 namespace Engine
 {
-    struct LoadedScene {
+    struct LaunchOptions
+    {
+        bool headless = false;
+        std::filesystem::path configPath = "config.json";
+    };
+
+    struct LoadedScene
+    {
         std::unique_ptr<Renderer::Scene> gpuScene;
         Scene::CameraPath cameraPath;
     };
@@ -25,14 +32,17 @@ namespace Engine
     class Engine
     {
     public:
-        Engine(bool headless);
+        explicit Engine(const LaunchOptions &options);
         ~Engine();
 
-        void run();
+        int run();
 
     private:
-        void runHeadless();
+        static constexpr VkExtent2D kRenderExtent{1920, 1080};
+
+        int runHeadless();
         void runWindowed();
+        void renderSceneFrame(ImDrawData *uiDrawData);
 
         void requestSceneLoad(const std::filesystem::path &objPath);
         void poolSceneLoad();
@@ -46,7 +56,7 @@ namespace Engine
         void rescanScenes();
         void handleUiActions(const UI::ControlPanelActions &actions);
 
-        bool m_headless;
+        LaunchOptions m_options;
         Window m_window;
         VulkanContext m_vulkanContext;
         Renderer::VulkanRenderer m_renderer;

@@ -2,27 +2,30 @@
 #include <iostream>
 #include <exception>
 
-int main(int argc, char* argv[]) {
-    bool headless = false;
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "-v" || std::string(argv[i]) == "--headless") {
-            // Adjust based on how your flag is checked, or keep as is:
-        }
-    }
-    // Check for -v or similar in your code...
-    bool isHeadless = false;
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "-v") {
-            isHeadless = true; // Wait, -v in your log was running windowed mode or headless?
-        }
-    }
+int main(int argc, char *argv[])
+{
+    Engine::LaunchOptions options;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string arg = argv[i];
+        if(arg == "--headless")
+            options.headless = true;
 
-    try {
-        Engine::Engine engine(false); // or whatever flag
-        engine.run();
-    } catch (const std::exception& e) {
+        else if (arg == "--config" && i + 1 < argc)
+            options.configPath = argv[++i];
+        else {
+            std::cerr << "Unknown argument: " << arg << std::endl << "Usage: [--headless] [--config path/to/config.json]" << std::endl;
+        }
+    }
+    
+    try
+    {
+        Engine::Engine engine(options); // or whatever flag
+        return engine.run();
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "FATAL EXCEPTION: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
