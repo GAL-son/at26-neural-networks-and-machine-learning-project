@@ -10,6 +10,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(tinyfiledialogs CONFIG REQUIRED)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
@@ -27,6 +28,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     OpenEXR::OpenEXR
     nlohmann_json::nlohmann_json
     GPUOpen::VulkanMemoryAllocator
+    tinyfiledialogs::tinyfiledialogs
 )
 
 find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin" REQUIRED)

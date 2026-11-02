@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include <optional>
 
 #include "VulkanContext.hpp"
 #include "Core/Window.hpp"
@@ -11,17 +12,17 @@
 #include "Renderer/Passes/GeometryPass.hpp"
 #include "Renderer/Passes/CompositePass.hpp"
 #include "Renderer/Passes/GroundTruthPass.hpp"
-#include "UI/UIManager.hpp"
-
-#include <optional>
 #include "Renderer/Capture/FrameReadback.hpp"
+#include "Scene/Scene.hpp"
+
+struct ImDrawData;
 
 namespace Engine::Renderer
 {
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext &vulkanContext, const Window &window, unsigned int renderResolutionX, unsigned int renderResolutionY);
+        VulkanRenderer(VulkanContext &vulkanContext, VkExtent2D renderExtent);
         ~VulkanRenderer();
 
         void init();
@@ -29,24 +30,22 @@ namespace Engine::Renderer
 
         // Zarządzanie sceną GPU
         // void loadScene(const Engine::Scene::Scene &cpuScene);
-        std::unique_ptr<Renderer::Scene> createGpuScene(const Engine::Scene::Scene &cpuScene) const;
+        std::unique_ptr<Renderer::Scene> createGpuScene(const ::Engine::Scene::Scene &cpuScene) const;
         void SetScene(std::unique_ptr<Renderer::Scene> scene);
         bool hasScene() const { return m_activeGpuScene != nullptr; };
 
         // Główna pętla renderowania
         std::optional<Capture::FrameData> renderFrame(
-            Engine::Camera &camera,
-            uint32_t processedFrames,
-            float frameTimeMs,
-            float passTimeMs,
-            bool capture = false);
+            ::Engine::Camera &camera,
+            bool capture = false,
+            ImDrawData *uiDrawData = nullptr
+        );
 
     private:
         static constexpr uint32_t kSsaaFactor = 4; // 4x4 = SSAA x16
         bool m_renderGroundTruth = true;
 
         VulkanContext &m_vulkanContext;
-        const Window &m_window;
         VkExtent2D m_renderExtent;
 
         // Command Pool dla alokacji komend renderowania i uploadu
@@ -63,11 +62,6 @@ namespace Engine::Renderer
 
         // Zarządcza scena GPU
         std::unique_ptr<Renderer::Scene> m_activeGpuScene;
-
-        // UI Manager (ImGui)
-        UI::UIManager m_uiManager;
-        VkDescriptorPool m_imguiPool{VK_NULL_HANDLE};
-
         VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 
         // Synchronizacja
