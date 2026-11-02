@@ -32,12 +32,18 @@ namespace Engine
             return;
 
         m_renderer.SetScene(nullptr);
+        m_cameraPath = {};
+        m_animationFrame = 0;
         m_pendingScenePath = objPath;
 
         m_pendingScene = std::async(std::launch::async, [this, objPath]
                                     {
                                     const Scene::Scene cpuScene = Utils::ObjLoader::loadModel(objPath.string());
-                                    return m_renderer.createGpuScene(cpuScene); });
+
+                                    LoadedScene loaded;
+                                    loaded.cameraPath = Scene::CameraPath::ForScene(objPath, cpuScene.computeBounds());
+                                    loaded.gpuScene = m_renderer.createGpuScene(cpuScene);
+                                    return loaded; });
     }
 
     void Engine::poolSceneLoad()
@@ -47,7 +53,10 @@ namespace Engine
 
         try
         {
-            m_renderer.SetScene(m_pendingScene.get());
+            LoadedScene loaded = m_pendingScene.get();
+            m_renderer.SetScene(std::move(loaded.gpuScene));
+            m_cameraPath = std::move(loaded.cameraPath);
+            m_animationFrame = 0;
             std::cout << "Scene ready: " << m_pendingScenePath << std::endl;
         }
         catch (const std::exception &e)
@@ -55,6 +64,39 @@ namespace Engine
             std::cout << "Exception thrown while loading scene: " << e.what() << std::endl;
         }
         m_pendingScenePath.clear();
+    }
+
+    void Engine::applyCameraPose()
+    {
+        if (m_cameraPath.empty())
+            return;
+
+        const Scene::CameraPose &pose = m_cameraPath.frames[m_animationFrame];
+        m_camera->updatePreviousVp();
+        m_camera->setPosition(pose.position);
+        m_camera->setRotation(pose.pitch, pose.yaw);
+
+        if (m_animationFrame == 0)
+        {
+            m_camera->updatePreviousVp();
+        }
+    }
+
+    void Engine::advanceAnimation()
+    {
+        if (m_cameraPath.empty())
+            return;
+
+        if (++m_animationFrame == m_cameraPath.frames.size())
+        {
+            m_animationFrame = 0;
+
+            if(m_recording) {
+                m_recording = false;
+                m_frameWriter.reset();
+                std::cout << "Finished Recording " << m_cameraPath.frames.size() << " frames" << std::endl;
+            }
+        }
     }
 
     void Engine::run()
@@ -100,10 +142,6 @@ namespace Engine
 
         while (!m_window.shouldClose())
         {
-            m_camera->updatePreviousVp(); // this saves current vp
-            m_camera->setRotation(0, cameraRotationDeg);
-            m_camera->setPosition(glm::vec3(cameraPositionX, 20.0f, 20.0f));
-
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
             m_lastTime = currentTime;
@@ -115,26 +153,17 @@ namespace Engine
             m_window.pollEvents();
             poolSceneLoad();
 
-            // Aktualizacja logiki kamery (np. ruch, rotacja - jeśli zaimplementowana w klasie Engine)
-            // m_camera.update(m_frameTimeMs);
-
-            // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
-            // m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            applyCameraPose();
             auto frame = m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs, m_recording);
             if (frame)
             {
                 if (!m_frameWriter)
                     m_frameWriter = std::make_unique<IO::ExrFrameWriter>("captures");
+                frame->frameIndex = m_animationFrame;
                 m_frameWriter->Submit(std::move(*frame));
             }
 
-            cameraRotationDeg += 25 * m_passTimeMs * 0.001;
-            if (cameraRotationDeg > 360)
-                cameraRotationDeg = 0;
-
-            cameraPositionX += 20 * m_passTimeMs * 0.001;
-            if (cameraPositionX > 140)
-                cameraPositionX = -140;
+            advanceAnimation();
         }
     }
 }

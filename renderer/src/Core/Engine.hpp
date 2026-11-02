@@ -11,9 +11,15 @@
 #include "Renderer/VulkanContext.hpp"
 #include "Renderer/VulkanRenderer.hpp"
 #include "IO/ExrFrameWriter.hpp"
+#include "Scene/CameraPath.hpp"
 
 namespace Engine
 {
+    struct LoadedScene {
+        std::unique_ptr<Renderer::Scene> gpuScene;
+        Scene::CameraPath cameraPath;
+    };
+
     class Engine
     {
     public:
@@ -29,6 +35,9 @@ namespace Engine
         void requestSceneLoad(const std::filesystem::path &objPath);
         void poolSceneLoad();
 
+        void applyCameraPose();
+        void advanceAnimation();
+
         bool m_headless;
         Window m_window;
         VulkanContext m_vulkanContext;
@@ -41,10 +50,13 @@ namespace Engine
 
         std::unique_ptr<Camera> m_camera;
 
+        Scene::CameraPath m_cameraPath;
+        uint32_t m_animationFrame = 0;
+
         std::unique_ptr<IO::ExrFrameWriter> m_frameWriter;
         bool m_recording = false;
 
-        std::future<std::unique_ptr<Renderer::Scene>> m_pendingScene;
+        std::future<LoadedScene> m_pendingScene;
         std::filesystem::path m_pendingScenePath;
     };
 }
