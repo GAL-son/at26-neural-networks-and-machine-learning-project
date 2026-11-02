@@ -137,7 +137,7 @@ namespace Engine::Renderer
         return {{
             {gbuffer[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Color
             {gbuffer[1], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Normals
-            {gbuffer[3], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Motion Vectors
+            {gbuffer[2], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Motion Vectors
             {m_geometryPass->GetDepthImage(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, kDepthStages, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_DEPTH_BIT}, // Depth
             {m_groundTruthPass->GetOutputImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kGtStages, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT}                          // SSAA GT
         }};
