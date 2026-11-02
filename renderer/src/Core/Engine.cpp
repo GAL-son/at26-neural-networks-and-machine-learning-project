@@ -1,112 +1,274 @@
 #include "Engine.hpp"
+
 #include <iostream>
 #include <thread>
 
+#include "Utils/FileUtils.hpp"
 #include "Utils/Models/ObjLoader.hpp"
+#include "Config/HeadlessConfig.hpp"
+#include "UI/ConsoleProgess.hpp"
 
 namespace Engine
 {
-    Engine::Engine(bool headless)
-        : m_headless(headless),
-          m_window(1280, 720, "AI Antialiaser Renderer", headless),
+    namespace
+    {
+        std::string SceneOutputName(const std::filesystem::path &objPath)
+        {
+            const std::string folder = objPath.parent_path().filename().string();
+            const std::string stem = objPath.stem().string();
+
+            return folder.empty() ? stem : folder + "_" + stem;
+        }
+    }
+
+    Engine::Engine(const LaunchOptions &options)
+        : m_options(options),
+          m_window(1280, 720, "AI Antialiaser Renderer", options.headless),
           m_vulkanContext(m_window),
-          m_renderer(m_vulkanContext, m_window)
+          m_renderer(m_vulkanContext, kRenderExtent)
     {
         m_renderer.init();
 
-        // --- Initialize Scene & Model on CPU ---
-        VkExtent2D extent = m_vulkanContext.getSwapchainExtent();
-        float aspectRatio = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        if (!m_options.headless)
+            m_ui = std::make_unique<UI::UIManager>(m_window, m_vulkanContext);
 
-        // FOV = 45 stopni, near = 0.1f, far = 100.0f
-        m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 1000.0f);
-
-        // Ustawiamy kamerę tak, żeby patrzyła na scenę (np. lekko cofnięta i w górę)
-        m_camera->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-
-        try
-        {
-            // 1. Wczytujemy scenę z pliku za pomocą statycznej metody ObjLoader
-            Scene::Scene cpuScene = Utils::ObjLoader::loadModel("scenes/bedroom/iscv2.obj");
-
-            // 2. Tworzymy unikalny wskaźnik na naszą scenę CPU
-            m_scene = std::make_unique<Scene::Scene>(std::move(cpuScene));
-            std::cout << "Successfully loaded McGuire bedroom scene via ObjLoader!\n";
-
-            // 3. Przekazujemy wczytaną scenę do renderera w celu konwersji i uploadu na GPU
-            m_renderer.loadScene(*m_scene);
-            std::cout << "Successfully converted and uploaded scene assets to GPU!\n";
-        }
-        catch (const std::exception &e)
-        {
-            std::cerr << "Failed to load or upload model: " << e.what() << std::endl;
-        }
+        float aspectRatio = float(kRenderExtent.width) / float(kRenderExtent.height);
+        m_camera = std::make_unique<Camera>(80.0f, aspectRatio, 0.1f, 10000.0f);
     }
 
     Engine::~Engine() = default; // RAII dba o czyszczenie zasobów w m_renderer i m_scene!
 
-    void Engine::run()
+    void Engine::requestSceneLoad(const std::filesystem::path &objPath)
     {
-        std::cout << "Running loop in " << (m_headless ? "HEADLESS" : "WINDOWED") << " mode...\n";
-        m_lastTime = std::chrono::high_resolution_clock::now();
+        if (m_pendingScene.valid() || m_recording)
+            return;
 
-        if (m_headless)
+        m_renderer.SetScene(nullptr);
+        m_activeScenePath.clear();
+        m_sceneError.clear();
+        m_cameraPath = {};
+        m_animationFrame = 0;
+        m_pendingScenePath = objPath;
+
+        m_pendingScene = std::async(std::launch::async, [this, objPath]
+                                    {
+                                    const Scene::Scene cpuScene = Utils::ObjLoader::loadModel(objPath.string());
+
+                                    LoadedScene loaded;
+                                    loaded.cameraPath = Scene::CameraPath::ForScene(objPath, cpuScene.computeBounds());
+                                    loaded.gpuScene = m_renderer.createGpuScene(cpuScene);
+                                    return loaded; });
+    }
+
+    void Engine::poolSceneLoad()
+    {
+        if (!m_pendingScene.valid() || m_pendingScene.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+            return;
+
+        try
         {
-            runHeadless();
+            LoadedScene loaded = m_pendingScene.get();
+            m_renderer.SetScene(std::move(loaded.gpuScene));
+            m_cameraPath = std::move(loaded.cameraPath);
+            m_animationFrame = 0;
+            m_activeScenePath = m_pendingScenePath;
+            std::cout << "Scene ready: " << m_pendingScenePath << std::endl;
         }
-        else
+        catch (const std::exception &e)
         {
-            runWindowed();
+            m_sceneError = e.what();
+            std::cout << "Exception thrown while loading scene: " << e.what() << std::endl;
+        }
+        m_pendingScenePath.clear();
+    }
+
+    void Engine::applyCameraPose()
+    {
+        if (m_cameraPath.empty())
+            return;
+
+        const Scene::CameraPose &pose = m_cameraPath.frames[m_animationFrame];
+        m_camera->updatePreviousVp();
+        m_camera->setPosition(pose.position);
+        m_camera->setRotation(pose.pitch, pose.yaw);
+
+        if (m_animationFrame == 0)
+        {
+            m_camera->updatePreviousVp();
         }
     }
 
-    void Engine::runHeadless()
+    void Engine::advanceAnimation()
     {
-        while (!m_window.shouldClose())
+        if (m_cameraPath.empty())
+            return;
+
+        if (++m_animationFrame == m_cameraPath.frames.size())
         {
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
-            m_lastTime = currentTime;
+            m_animationFrame = 0;
 
-            m_frameTimeMs = delta.count();
-            m_passTimeMs = m_frameTimeMs * 0.75f;
-            m_processedFrames++;
-
-            m_window.pollEvents();
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-            if (m_processedFrames > 150)
-                break;
+            if (m_recording)
+            {
+                stopRecording();
+            }
         }
-        std::cout << "Headless batch generation complete. Exiting.\n";
+    }
+
+    void Engine::startRecording()
+    {
+        if (m_recording || m_activeScenePath.empty() || m_cameraPath.empty())
+            return;
+
+        m_frameWriter = std::make_unique<IO::ExrFrameWriter>(m_outputRoot / SceneOutputName(m_activeScenePath));
+        m_animationFrame = 0;
+        m_recording = true;
+        std::cout << "Recording " << m_cameraPath.frames.size() << " frames of" << m_activeScenePath << std::endl;
+    }
+
+    void Engine::stopRecording()
+    {
+        if (!m_recording)
+            return;
+
+        m_recording = false;
+        m_frameWriter.reset();
+        std::cout << "Stopped recording" << std::endl;
+    }
+
+    void Engine::rescanScenes()
+    {
+        m_sceneFiles = Utils::FindObjFiles(m_scenesDir);
+    }
+
+    void Engine::handleUiActions(const UI::ControlPanelActions &actions)
+    {
+        if (actions.choseScenesDir)
+        {
+            if (auto dir = UI::UIManager::PickDirectory(m_scenesDir))
+            {
+                m_scenesDir = *dir;
+                rescanScenes();
+            }
+        }
+        else if (actions.rescan)
+        {
+            rescanScenes();
+        }
+
+        if (actions.loadScene)
+            requestSceneLoad(*actions.loadScene);
+        if (actions.stopRecording)
+            stopRecording();
+        if (actions.startRecording)
+            startRecording();
+    }
+
+    int Engine::run()
+    {
+        std::cout << "Running in " << (m_options.headless ? "HEADLESS" : "WINDOWED") << " mode...\n";
+        m_lastTime = std::chrono::high_resolution_clock::now();
+
+        if (m_options.headless)
+            return runHeadless();
+
+        runWindowed();
+        return EXIT_SUCCESS;
+    }
+
+    void Engine::renderSceneFrame(ImDrawData *uiDrawData)
+    {
+        applyCameraPose();
+        auto frame = m_renderer.renderFrame(*m_camera, m_recording, uiDrawData);
+        if (frame && m_frameWriter)
+        {
+            frame->frameIndex = m_animationFrame;
+            m_frameWriter->Submit(std::move(*frame));
+        }
+
+        advanceAnimation();
+    }
+
+    int Engine::runHeadless()
+    {
+        const HeadlessConfig config = HeadlessConfig::Load(m_options.configPath);
+        m_scenesDir = config.scenesDir;
+        m_outputRoot = config.outputDir;
+
+        std::cout << "Recording " << config.scenes.size() << " scene(s) into " << m_outputRoot << std::endl;
+
+        UI::ConsoleProgress progress(config.scenes.size());
+        size_t failedScenes = 0;
+
+        for (size_t i = 0; i < config.scenes.size(); ++i)
+        {
+            progress.beginScene(i, SceneOutputName(config.scenes[i]));
+
+            requestSceneLoad(config.scenes[i]);
+            while (m_pendingScene.valid()) {
+                poolSceneLoad();
+                if(m_pendingScene.valid()) {
+                    progress.loading();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+
+            if(m_activeScenePath.empty()) {
+                progress.failed(m_sceneError);
+                ++failedScenes;
+                continue;
+            }
+
+            uint32_t total = static_cast<uint32_t>(m_cameraPath.frames.size());
+            startRecording();
+            progress.recordingStarted();
+
+            uint32_t done = 0;
+            while(m_recording) {
+                renderSceneFrame(nullptr);
+                progress.recording(++done, total);
+            }
+            progress.finished(total);
+        }
+
+        std::cout << "All scenes processed: " << (config.scenes.size() - failedScenes) << " recorded " << failedScenes << " failed. Exiting" << std::endl;
+        return failedScenes == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     void Engine::runWindowed()
     {
-        float cameraRotationDeg = 0;
-        m_camera->setPosition(glm::vec3(10.0f, 10.0f, 10.0f));
+        rescanScenes();
 
         while (!m_window.shouldClose())
         {
-            m_camera->setRotation(0, cameraRotationDeg);
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float, std::milli> delta = currentTime - m_lastTime;
             m_lastTime = currentTime;
 
             m_frameTimeMs = delta.count();
-            m_passTimeMs = m_frameTimeMs * 0.75f;
+            m_passTimeMs = m_frameTimeMs;
             m_processedFrames++;
 
             m_window.pollEvents();
+            poolSceneLoad();
 
-            // Aktualizacja logiki kamery (np. ruch, rotacja - jeśli zaimplementowana w klasie Engine)
-            // m_camera.update(m_frameTimeMs);
+            m_ui->beginFrame();
+            m_ui->renderBufferLabels();
+            m_ui->renderStats(m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            const UI::ControlPanelActions actions = m_ui->renderControlPanel({m_scenesDir,
+                                                                              m_sceneFiles,
+                                                                              m_activeScenePath,
+                                                                              m_pendingScenePath,
+                                                                              m_sceneError,
+                                                                              m_recording,
+                                                                              m_cameraPath.generated,
+                                                                              m_animationFrame,
+                                                                              static_cast<uint32_t>(m_cameraPath.frames.size())});
+            ImDrawData *drawData = m_ui->endFrame();
 
-            // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
-            m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
-
-            cameraRotationDeg += 0.1;
-            if (cameraRotationDeg > 360)
-                cameraRotationDeg = 0;
+            handleUiActions(actions);
+            renderSceneFrame(drawData);
         }
+
+        stopRecording();
     }
 }

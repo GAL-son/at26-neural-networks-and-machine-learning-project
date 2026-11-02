@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include <optional>
 
 #include "VulkanContext.hpp"
 #include "Core/Window.hpp"
@@ -10,28 +11,42 @@
 #include "Renderer/Resources/Scene.hpp"
 #include "Renderer/Passes/GeometryPass.hpp"
 #include "Renderer/Passes/CompositePass.hpp"
-#include "UI/UIManager.hpp"
+#include "Renderer/Passes/GroundTruthPass.hpp"
+#include "Renderer/Capture/FrameReadback.hpp"
+#include "Scene/Scene.hpp"
+
+struct ImDrawData;
 
 namespace Engine::Renderer
 {
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext& vulkanContext, const Window& window);
+        VulkanRenderer(VulkanContext &vulkanContext, VkExtent2D renderExtent);
         ~VulkanRenderer();
 
         void init();
         void cleanup();
 
         // Zarządzanie sceną GPU
-        void loadScene(const Engine::Scene::Scene& cpuScene);
+        // void loadScene(const Engine::Scene::Scene &cpuScene);
+        std::unique_ptr<Renderer::Scene> createGpuScene(const ::Engine::Scene::Scene &cpuScene) const;
+        void SetScene(std::unique_ptr<Renderer::Scene> scene);
+        bool hasScene() const { return m_activeGpuScene != nullptr; };
 
         // Główna pętla renderowania
-        void renderFrame(Engine::Camera& camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
+        std::optional<Capture::FrameData> renderFrame(
+            ::Engine::Camera &camera,
+            bool capture = false,
+            ImDrawData *uiDrawData = nullptr
+        );
 
     private:
-        VulkanContext& m_vulkanContext;
-        const Window& m_window;
+        static constexpr uint32_t kSsaaFactor = 4; // 4x4 = SSAA x16
+        bool m_renderGroundTruth = true;
+
+        VulkanContext &m_vulkanContext;
+        VkExtent2D m_renderExtent;
 
         // Command Pool dla alokacji komend renderowania i uploadu
         VkCommandPool m_commandPool{VK_NULL_HANDLE};
@@ -43,18 +58,21 @@ namespace Engine::Renderer
         // Pasy renderowania
         std::unique_ptr<GeometryPass> m_geometryPass;
         std::unique_ptr<CompositePass> m_compositePass;
+        std::unique_ptr<GroundTruthPass> m_groundTruthPass;
+
+        bool m_presentEnabled;
 
         // Zarządcza scena GPU
         std::unique_ptr<Renderer::Scene> m_activeGpuScene;
-
-        // UI Manager (ImGui)
-        UIManager m_uiManager;
-        VkDescriptorPool m_imguiPool{VK_NULL_HANDLE};
+        VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 
         // Synchronizacja
         VkSemaphore m_imageAvailableSemaphore{VK_NULL_HANDLE};
         std::vector<VkSemaphore> m_renderFinishedSemaphores;
         VkFence m_inFlightFence{VK_NULL_HANDLE};
+
+        std::unique_ptr<FrameReadback> m_frameReadback;
+        std::array<FrameReadback::Source, FrameReadback::TargetCount> readbackSources();
 
         void createCommandPool();
         void createCommandBuffers();
@@ -64,7 +82,9 @@ namespace Engine::Renderer
         void waitForInFlightFence();
         uint32_t acquireNextSwapchainImage();
         void beginCommandBuffer();
-        
+
+        void createMaterialSetLayout();
+
         void prepareSwapchainForRendering(uint32_t imageIndex);
         void prepareSwapchainForPresentation(uint32_t imageIndex);
         void insertImageMemoryBarrier(
@@ -74,10 +94,12 @@ namespace Engine::Renderer
             VkAccessFlags srcAccess,
             VkAccessFlags dstAccess,
             VkPipelineStageFlags srcStage,
-            VkPipelineStageFlags dstStage
-        );
+            VkPipelineStageFlags dstStage);
 
         void submitCommandBuffer(uint32_t imageIndex);
         void presentSwapchainImage(uint32_t imageIndex);
+
+        void recordPresentation(uint32_t imageIndex, ::Engine::Camera &camera, ImDrawData *uiDrawData);
+        void submitCommandBuffer(const uint32_t *imageIndex);
     };
 }

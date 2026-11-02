@@ -104,21 +104,12 @@ void VulkanContext::createInstance(const Window &window)
     {
         uint32_t glfwExtensionCount = 0;
         const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        for (uint32_t i = 0; i < glfwExtensionCount; ++i)
-        {
-            extensions.push_back(glfwExtensions[i]);
-        }
-    }
-    else
-    {
-        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.assign(glfwExtensions, glfwExtensions + glfwExtensionCount);
     }
 
     // Add debug messenger extension if validation is enabled
     if (m_enableValidationLayers)
-    {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -127,10 +118,17 @@ void VulkanContext::createInstance(const Window &window)
     createInfo.ppEnabledExtensionNames = extensions.data();
 
     const char *validationLayer = "VK_LAYER_KHRONOS_validation";
+    VkValidationFeatureEnableEXT enables[] = {VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT};
+    VkValidationFeaturesEXT features{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
+    features.enabledValidationFeatureCount = 1;
+    features.pEnabledValidationFeatures = enables;
+    
+
     if (m_enableValidationLayers)
     {
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = &validationLayer;
+        createInfo.pNext = &features;
     }
     else
     {
@@ -193,7 +191,10 @@ void VulkanContext::createLogicalDevice()
     }
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = {m_graphicsQueueFamily, m_presentQueueFamily};
+    std::set<uint32_t> uniqueQueueFamilies = {m_graphicsQueueFamily};
+    if (!m_window.isHeadless())
+        uniqueQueueFamilies.insert(m_presentQueueFamily);
+        
     float queuePriority = 1.0f;
     for (uint32_t queueFamily : uniqueQueueFamilies)
     {
@@ -275,7 +276,8 @@ void VulkanContext::createSwapchain(int width, int height)
 
 void VulkanContext::recreateSwapchain(uint32_t width, uint32_t height)
 {
-    if (width == 0 || height == 0) return;
+    if (width == 0 || height == 0)
+        return;
 
     vkDeviceWaitIdle(m_device);
 

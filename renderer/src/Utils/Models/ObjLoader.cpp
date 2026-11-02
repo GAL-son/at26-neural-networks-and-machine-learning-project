@@ -102,8 +102,11 @@ namespace Engine::Utils
         Scene::Mesh mesh;
         mesh.name = scene.name + "_Mesh";
 
-        // Temporary structure to hold index batches per material ID
-        std::unordered_map<int32_t, std::vector<Scene::Index>> materialBatches;
+        size_t numMaterials = scene.materials.size();
+
+        // Używamy wektorów zamiast unordered_map, aby zachować stałą i przewidywalną kolejność
+        std::vector<std::vector<Scene::Vertex>> submeshVertices(numMaterials);
+        std::vector<std::vector<Scene::Index>> submeshIndices(numMaterials);
 
         for (const auto &shape : shapes)
         {
@@ -113,26 +116,25 @@ namespace Engine::Utils
                 int fv = shape.mesh.num_face_vertices[f];
                 int32_t matId = shape.mesh.material_ids[f];
 
-                // Ensure material index is valid, otherwise fallback to 0
-                if (matId < 0 || matId >= static_cast<int32_t>(scene.materials.size()))
+                // Zabezpieczenie przed błędnym ID materiału
+                if (matId < 0 || matId >= static_cast<int32_t>(numMaterials))
                 {
                     matId = 0;
                 }
 
-                // Process each vertex in the face (assumes triangulation or handles general polygons)
                 for (int v = 0; v < fv; v++)
                 {
                     tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
 
                     Scene::Vertex vertex{};
 
-                    // Position (mandatory)
+                    // Pozycja
                     vertex.position = {
                         attrib.vertices[3 * idx.vertex_index + 0],
                         attrib.vertices[3 * idx.vertex_index + 1],
                         attrib.vertices[3 * idx.vertex_index + 2]};
 
-                    // Normal (optional)
+                    // Normalna
                     if (idx.normal_index >= 0)
                     {
                         vertex.normal = {
@@ -142,38 +144,55 @@ namespace Engine::Utils
                     }
                     else
                     {
-                        vertex.normal = {0.0f, 1.0f, 0.0f}; // Fallback normal
+                        vertex.normal = {0.0f, 1.0f, 0.0f};
                     }
 
-                    // Texture Coordinates (optional - note V coordinate flip for Vulkan)
+                    // Koordynaty UV (z odwróceniem osi V dla Vulkana)
                     if (idx.texcoord_index >= 0)
                     {
+                        // vertex.texCoord = {
+                        //     attrib.texcoords[2 * idx.texcoord_index + 0],
+                        //     1.0f - attrib.texcoords[2 * idx.texcoord_index + 1]};
                         vertex.texCoord = {
                             attrib.texcoords[2 * idx.texcoord_index + 0],
-                            1.0f - attrib.texcoords[2 * idx.texcoord_index + 1]};
+                            attrib.texcoords[2 * idx.texcoord_index + 1]};
                     }
 
-                    // Add vertex and record its index in the global vertex buffer
-                    mesh.vertices.push_back(vertex);
-                    Scene::Index newVertexIndex = static_cast<Scene::Index>(mesh.vertices.size() - 1);
-
-                    materialBatches[matId].push_back(newVertexIndex);
+                    submeshVertices[matId].push_back(vertex);
+                    submeshIndices[matId].push_back(static_cast<Scene::Index>(submeshVertices[matId].size() - 1));
                 }
                 index_offset += fv;
             }
         }
 
-        // --- 3. Build Submeshes from Material Batches ---
-        for (const auto &[matId, batchIndices] : materialBatches)
+        // --- 3. Build Submeshes and Merge into Master Mesh ---
+        for (size_t matId = 0; matId < numMaterials; ++matId)
         {
+            if (submeshVertices[matId].empty())
+            {
+                continue; // Pomijamy materiały, które nie są używane przez żadną geometrię
+            }
+
             Scene::Submesh submesh;
             submesh.name = "Submesh_Mat_" + std::to_string(matId);
             submesh.indexOffset = static_cast<Scene::Index>(mesh.indices.size());
-            submesh.indexCount = static_cast<Scene::Index>(batchIndices.size());
-            submesh.materialIndex = matId;
+            submesh.indexCount = static_cast<Scene::Index>(submeshIndices[matId].size());
+            submesh.materialIndex = static_cast<int32_t>(matId);
 
-            // Append batch indices to the master index buffer
-            mesh.indices.insert(mesh.indices.end(), batchIndices.begin(), batchIndices.end());
+            // Obliczamy offset dla wierzchołków, aby indeksy wskazywały na właściwe pozycje w globalnym buforze
+            Scene::Index vertexOffset = static_cast<Scene::Index>(mesh.vertices.size());
+
+            for (Scene::Index localIdx : submeshIndices[matId])
+            {
+                mesh.indices.push_back(localIdx + vertexOffset);
+            }
+
+            // Dołączamy wierzchołki tego submesha do głównego bufora wierzchołków mesha
+            mesh.vertices.insert(
+                mesh.vertices.end(),
+                submeshVertices[matId].begin(),
+                submeshVertices[matId].end());
+
             mesh.submeshes.push_back(submesh);
         }
 

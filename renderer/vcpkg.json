@@ -16,6 +16,7 @@
       "features": ["glfw-binding", "vulkan-binding"]
     },
     "openexr",
-    "nlohmann-json"
+    "nlohmann-json",
+    "tinyfiledialogs"
   ]
 }

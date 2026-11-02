@@ -1,12 +1,14 @@
 #pragma once
 #define VULKAN_HPP_NO_CONSTRUCTORS
 
-#include "../Utils/Macros.hpp"
+#include "Utils/Macros.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <vk_mem_alloc.h>
-#include "../Core/Window.hpp"
 #include <vector>
+#include <mutex>
+
+#include "Core/Window.hpp"
 
 class VulkanContext
 {
@@ -31,6 +33,18 @@ public:
     const std::vector<VkImageView> &getSwapchainImageViews() const { return m_swapchainImageViews; }
     const std::vector<VkImage> &getSwapchainImages() const { return m_swapchainImages; }
     VkExtent2D getSwapchainExtent() const { return m_swapchainExtent; }
+
+    VkResult submitGraphics(const VkSubmitInfo &submitInfo, VkFence fence) const {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        return vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence);
+    }
+
+    VkResult present(const VkPresentInfoKHR &presentInfo) const {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        return vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+    }
+
+    std::mutex &getQueueMutex() const {return m_queueMutex;};
 
     void recreateSwapchain(uint32_t width, uint32_t height);
 
@@ -59,6 +73,8 @@ private:
     uint32_t m_graphicsQueueFamily = 0;
     VkQueue m_presentQueue = VK_NULL_HANDLE;
     uint32_t m_presentQueueFamily = 0;
+    mutable std::mutex m_queueMutex;
+
     VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
     // Swapchain members
