@@ -139,7 +139,7 @@ namespace Engine::IO
             {
                 const std::string name = std::string(layer) + "." + channel;
                 header.channels().insert(name, Imf::Channel(type));
-                frameBuffer.insert(name, Imf::Slice(type, base + component + componentSize, xStride, xStride * width));
+                frameBuffer.insert(name, Imf::Slice(type, base + component * componentSize, xStride, xStride * width));
                 ++component;
             }
         };
