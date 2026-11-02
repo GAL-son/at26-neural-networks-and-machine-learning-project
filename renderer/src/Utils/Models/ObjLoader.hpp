@@ -8,7 +8,6 @@ namespace Engine::Utils
     class ObjLoader
     {
     public:
-
         static Scene::Scene loadModel(const std::string& filepath);
     };
 
