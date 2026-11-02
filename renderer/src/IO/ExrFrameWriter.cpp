@@ -32,7 +32,7 @@ namespace Engine::IO
     }
 
     ExrFrameWriter::ExrFrameWriter(std::filesystem::path outputDir, std::size_t maxQueuedFrames)
-        : m_outputDir(outputDir)
+        : m_outputDir(outputDir), m_maxQueuedFrames(maxQueuedFrames)
     {
         std::filesystem::create_directories(m_outputDir);
 
