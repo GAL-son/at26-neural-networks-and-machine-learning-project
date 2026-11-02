@@ -53,7 +53,7 @@ namespace Engine::Renderer
     {
         const uint32_t materialCount = static_cast<uint32_t>(m_gpuMaterials.empty() ? 1 : m_gpuMaterials.size());
 
-        const Texture *fallbackTexture = !m_gpuMaterials.empty() ? m_gpuTextures[0].get() : nullptr;
+        const Texture *fallbackTexture = !m_gpuTextures.empty() ? m_gpuTextures[0].get() : nullptr;
         if (!fallbackTexture)
             throw std::runtime_error("No fallback texture");
 

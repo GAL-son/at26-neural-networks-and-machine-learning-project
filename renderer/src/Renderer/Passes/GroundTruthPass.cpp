@@ -169,8 +169,8 @@ namespace Engine::Renderer
         framebufferInfo.renderPass = m_renderPass;
         framebufferInfo.attachmentCount = static_cast<uint32_t>(views.size());
         framebufferInfo.pAttachments = views.data();
-        framebufferInfo.width = m_outputExtent.width;
-        framebufferInfo.height = m_outputExtent.height;
+        framebufferInfo.width = m_superExtent.width;
+        framebufferInfo.height = m_superExtent.height;
         framebufferInfo.layers = 1;
 
         m_framebuffers.resize(1);
@@ -432,7 +432,7 @@ namespace Engine::Renderer
         vkCmdPushConstants(commandBuffer, m_downsamplePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(factor), &factor);
         vkCmdDispatch(commandBuffer, (m_outputExtent.width + 7) / 8, (m_outputExtent.height + 7) / 8, 1);
 
-        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
