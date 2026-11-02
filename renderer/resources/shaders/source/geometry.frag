@@ -19,6 +19,6 @@ void main() {
 
     // Output targets (fixed inUV casing)
     outColor           = shadeAlbedo(inUV); 
-    outNormal          = vec4(normalize(inNormal) * 0.5f + 0.5f, 1.0f);
+    outNormal          = vec4(normalize(inNormal), 1.0f);
     outMotionVectors = vec4((curr - prev) * 0.5, 0.0, 1.0);
 }

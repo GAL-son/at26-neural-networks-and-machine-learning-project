@@ -384,7 +384,7 @@ namespace Engine::Renderer
     {
         std::array<VkClearValue, 4> clearValues{};
         clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}}; // Color
-        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Normal
+        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 0.0f}}; // Normal
         clearValues[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Motion Vectors
         clearValues[3].depthStencil = {1.0f, 0};           // Depth (indeks 3)
 

@@ -13,29 +13,38 @@
 #include "Renderer/Passes/GroundTruthPass.hpp"
 #include "UI/UIManager.hpp"
 
+#include <optional>
+#include "Renderer/Capture/FrameReadback.hpp"
+
 namespace Engine::Renderer
 {
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext& vulkanContext, const Window& window, unsigned int renderResolutionX, unsigned int renderResolutionY);
+        VulkanRenderer(VulkanContext &vulkanContext, const Window &window, unsigned int renderResolutionX, unsigned int renderResolutionY);
         ~VulkanRenderer();
 
         void init();
         void cleanup();
 
         // Zarządzanie sceną GPU
-        void loadScene(const Engine::Scene::Scene& cpuScene);
+        void loadScene(const Engine::Scene::Scene &cpuScene);
 
         // Główna pętla renderowania
-        void renderFrame(Engine::Camera& camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs);
+        std::optional<Capture::FrameData> renderFrame(
+            Engine::Camera &camera,
+            uint32_t processedFrames,
+            float frameTimeMs,
+            float passTimeMs,
+            bool capture = false
+        );
 
     private:
         static constexpr uint32_t kSsaaFactor = 4; // 4x4 = SSAA x16
         bool m_renderGroundTruth = true;
 
-        VulkanContext& m_vulkanContext;
-        const Window& m_window;
+        VulkanContext &m_vulkanContext;
+        const Window &m_window;
         VkExtent2D m_renderExtent;
 
         // Command Pool dla alokacji komend renderowania i uploadu
@@ -64,6 +73,9 @@ namespace Engine::Renderer
         std::vector<VkSemaphore> m_renderFinishedSemaphores;
         VkFence m_inFlightFence{VK_NULL_HANDLE};
 
+        std::unique_ptr<FrameReadback> m_frameReadback;
+        std::array<FrameReadback::Source, FrameReadback::TargetCount> readbackSources();
+
         void createCommandPool();
         void createCommandBuffers();
         void createSampler();
@@ -74,7 +86,7 @@ namespace Engine::Renderer
         void beginCommandBuffer();
 
         void createMaterialSetLayout();
-        
+
         void prepareSwapchainForRendering(uint32_t imageIndex);
         void prepareSwapchainForPresentation(uint32_t imageIndex);
         void insertImageMemoryBarrier(
@@ -84,8 +96,7 @@ namespace Engine::Renderer
             VkAccessFlags srcAccess,
             VkAccessFlags dstAccess,
             VkPipelineStageFlags srcStage,
-            VkPipelineStageFlags dstStage
-        );
+            VkPipelineStageFlags dstStage);
 
         void submitCommandBuffer(uint32_t imageIndex);
         void presentSwapchainImage(uint32_t imageIndex);

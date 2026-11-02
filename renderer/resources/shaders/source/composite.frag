@@ -30,7 +30,8 @@ void main() {
     if(top && left) { // Albedo 
         outColor = texture(texColor, local);
     } else if (top) { // Normal
-        outColor = texture(texNormals, local); // Fixed: 'tecture' -> 'texture', 'texNormal' -> 'texNormals'
+        vec4 n = texture(texNormals, local);
+        outColor = vec4(n.a > 0.0 ? n.xyz * 0.5 + 0.5 : vec3(0.0), 1.0);
     } else if (left) { // Motion Vector
         vec2 mv = texture(texMotion, local).rg;
         outColor = vec4(mv * params.mvScale * 0.5 + 0.5, 0.5, 1.0);

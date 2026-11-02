@@ -5,9 +5,9 @@
 namespace Engine::Renderer
 {
     VulkanRenderer::VulkanRenderer(
-        VulkanContext &vulkanContext, 
-        const Window &window, 
-        unsigned int renderResolutionX, 
+        VulkanContext &vulkanContext,
+        const Window &window,
+        unsigned int renderResolutionX,
         unsigned int renderResolutionY)
         : m_vulkanContext(vulkanContext),
           m_window(window),
@@ -36,6 +36,8 @@ namespace Engine::Renderer
 
         m_groundTruthPass = std::make_unique<GroundTruthPass>(m_vulkanContext, m_renderExtent, kSsaaFactor, m_materialSetLayout);
         m_groundTruthPass->Create();
+
+        m_frameReadback = std::make_unique<FrameReadback>(m_vulkanContext, m_renderExtent);
 
         // 2. Pobieramy widoki kolorów i doklejamy na koniec widok głębi
         std::vector<VkImageView> compositeInputViews = m_geometryPass->GetTargetImageViews(); // 3 bufory kolorów
@@ -85,15 +87,16 @@ namespace Engine::Renderer
             m_geometryPass.reset();
         }
 
-        if(m_groundTruthPass)
+        if (m_groundTruthPass)
         {
             m_groundTruthPass->Cleanup();
             m_groundTruthPass.reset();
         }
-        
+
         m_uiManager.shutdown(m_vulkanContext, m_imguiPool);
 
-        if(m_materialSetLayout) {
+        if (m_materialSetLayout)
+        {
             vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
         }
 
@@ -114,23 +117,53 @@ namespace Engine::Renderer
         if (m_inFlightFence)
             vkDestroyFence(device, m_inFlightFence, nullptr);
 
+        m_frameReadback.reset();
+
         if (m_commandPool)
             vkDestroyCommandPool(device, m_commandPool, nullptr);
     }
 
-    void VulkanRenderer::renderFrame(Engine::Camera &camera, uint32_t processedFrames, float frameTimeMs, float passTimeMs)
+    std::array<FrameReadback::Source, FrameReadback::TargetCount> VulkanRenderer::readbackSources()
     {
+        const auto &gbuffer = m_geometryPass->GetTargetImages();
+
+        constexpr VkPipelineStageFlags kColorStages =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        constexpr VkPipelineStageFlags kDepthStages =
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        constexpr VkPipelineStageFlags kGtStages =
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+        return {{
+            {gbuffer[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Color
+            {gbuffer[1], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Normals
+            {gbuffer[3], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kColorStages, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT},                                     // Motion Vectors
+            {m_geometryPass->GetDepthImage(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, kDepthStages, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_DEPTH_BIT}, // Depth
+            {m_groundTruthPass->GetOutputImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, kGtStages, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT}                          // SSAA GT
+        }};
+    }
+
+    std::optional<Capture::FrameData> VulkanRenderer::renderFrame(
+        Engine::Camera &camera,
+        uint32_t processedFrames,
+        float frameTimeMs,
+        float passTimeMs,
+        bool capture)
+    {
+
+        capture = capture && m_activeGpuScene;
+
         // 1. Pacing & Acquisition
         waitForInFlightFence();
         uint32_t imageIndex = acquireNextSwapchainImage();
 
-        // 2. Rejestrowanie komend renderowania
+        // 2. Registering command buffer
         vkResetCommandBuffer(m_commandBuffer, 0);
         beginCommandBuffer();
 
         VkExtent2D displayExtent = m_vulkanContext.getSwapchainExtent();
 
-        // A. Pass Geometryczny (MRT -> 4 bufory wyjściowe)
+        // Geometry pass: Albedo, Normals, Motion Vectors, Depthk
         m_geometryPass->Begin(m_commandBuffer, displayExtent);
         if (m_activeGpuScene)
         {
@@ -138,17 +171,19 @@ namespace Engine::Renderer
         }
         m_geometryPass->End(m_commandBuffer);
 
-        if(m_renderGroundTruth && m_activeGpuScene) {
+        // Ground truth SSAA
+        if ((m_renderGroundTruth || capture) && m_activeGpuScene) // Always render GT when capturing
+        {
             m_groundTruthPass->Begin(m_commandBuffer, m_renderExtent);
             m_groundTruthPass->Render(m_commandBuffer, *m_activeGpuScene, camera);
             m_groundTruthPass->End(m_commandBuffer);
         }
 
-
-        // B. Przygotowanie swapchaina pod rendering kompozycji oraz UI
+        // B. Prepare swapchain for display
+        // TODO: In the future ad headless if
         prepareSwapchainForRendering(imageIndex);
 
-        // C. Composite Pass & UI Overlay na bufor Swapchain
+        // C. Composite Pass + UI Overlay
         m_uiManager.beginFrame();
         m_uiManager.renderBufferLabels();
         m_uiManager.renderStats(processedFrames, frameTimeMs, passTimeMs);
@@ -177,25 +212,39 @@ namespace Engine::Renderer
         VkRect2D scissor{{0, 0}, displayExtent};
         vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
 
-        // Rysujemy siatkę 2x2 z tekstur MRT za pomocą CompositePass
+        // Drow 2x2 composite
         if (m_activeGpuScene)
         {
             m_compositePass->Render(m_commandBuffer, *m_activeGpuScene, camera);
         }
-
-        // Rysujemy ImGui w tym samym subpassie/rendering passie
         m_uiManager.renderDrawData(m_commandBuffer);
 
         vkCmdEndRendering(m_commandBuffer);
 
         // D. Przygotowanie obrazu do zaprezentowania na ekranie
-        prepareSwapchainForPresentation(imageIndex);
+        if (capture)
+            m_frameReadback->ReadCopies(m_commandBuffer, readbackSources());
 
+        prepareSwapchainForPresentation(imageIndex);
         vkEndCommandBuffer(m_commandBuffer);
 
-        // 3. Wysyłanie do GPU & Present
         submitCommandBuffer(imageIndex);
         presentSwapchainImage(imageIndex);
+
+        if(!capture)
+            return std::nullopt;
+
+        vkWaitForFences(m_vulkanContext.getDevice(), 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
+        
+        Capture::FrameData frame;
+        frame.frameIndex = processedFrames;
+        frame.ssafactor = kSsaaFactor;
+        frame.nearPlane = camera.getNearPlane();
+        frame.farPlane = camera.getFarPlane();
+        frame.viewProjection = camera.getVPMatrix();
+        frame.prevViewProjection = camera.getPreviousVpMatrix();
+        m_frameReadback->Collect(frame);
+        return frame;
     }
 
     void VulkanRenderer::createCommandPool()
@@ -291,7 +340,8 @@ namespace Engine::Renderer
         vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
     }
 
-    void VulkanRenderer::createMaterialSetLayout() {
+    void VulkanRenderer::createMaterialSetLayout()
+    {
         std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
 
         bindings[0] = {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
@@ -301,10 +351,8 @@ namespace Engine::Renderer
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if(vkCreateDescriptorSetLayout(m_vulkanContext.getDevice() ,&layoutInfo, nullptr, &m_materialSetLayout) != VK_SUCCESS)
+        if (vkCreateDescriptorSetLayout(m_vulkanContext.getDevice(), &layoutInfo, nullptr, &m_materialSetLayout) != VK_SUCCESS)
             throw std::runtime_error("Failed to create material descriptor set layout");
-
-
     }
 
     void VulkanRenderer::prepareSwapchainForRendering(uint32_t imageIndex)

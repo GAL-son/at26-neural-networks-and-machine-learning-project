@@ -6,8 +6,9 @@
 
 #include "../Scene/Scene.hpp"
 
-#include "../Renderer/VulkanContext.hpp"
-#include "../Renderer/VulkanRenderer.hpp"
+#include "Renderer/VulkanContext.hpp"
+#include "Renderer/VulkanRenderer.hpp"
+#include "IO/ExrFrameWriter.hpp"
 
 namespace Engine
 {
@@ -36,5 +37,8 @@ namespace Engine
         std::chrono::high_resolution_clock::time_point m_lastTime;
 
         std::unique_ptr<Camera> m_camera;
+
+        std::unique_ptr<IO::ExrFrameWriter> m_frameWriter;
+        bool m_recording = false;
     };
 }

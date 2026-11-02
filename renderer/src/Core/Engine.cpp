@@ -107,7 +107,13 @@ namespace Engine
             // m_camera.update(m_frameTimeMs);
 
             // Delegujemy renderowanie klatki do renderera, przekazując kamerę oraz statystyki UI
-            m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            // m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs);
+            auto frame = m_renderer.renderFrame(*m_camera, m_processedFrames, m_frameTimeMs, m_passTimeMs, m_recording);
+            if(frame) {
+                if(!m_frameWriter) 
+                    m_frameWriter = std::make_unique<IO::ExrFrameWriter>("captures");
+                m_frameWriter->Submit(std::move(*frame));
+            }
 
             cameraRotationDeg += 25 * m_passTimeMs * 0.001;
             if (cameraRotationDeg > 360)
