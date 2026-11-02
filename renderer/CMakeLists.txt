@@ -28,7 +28,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     OpenEXR::OpenEXR
     nlohmann_json::nlohmann_json
     GPUOpen::VulkanMemoryAllocator
-    tinyfiledialogs
+    tinyfiledialogs::tinyfiledialogs
 )
 
 find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin" REQUIRED)
