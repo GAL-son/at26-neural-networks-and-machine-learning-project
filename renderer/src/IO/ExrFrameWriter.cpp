@@ -102,7 +102,7 @@ namespace Engine::IO
         std::vector<Imath::half> albedo(pixelCount * albedoChannels);
         for (size_t i = 0; i < pixelCount; ++i)
             for (size_t c = 0; c < albedoChannels; ++c)
-                albedo[i * albedoChannels + c] = Imath::half(frame.albedo[1 * 4 + c] / 255.0f);
+                albedo[i * albedoChannels + c] = Imath::half(frame.albedo[i * 4 + c] / 255.0f);
 
         // Depth [0,1] -> background = farplane
         std::vector<float> depth(pixelCount);
