@@ -12,7 +12,7 @@ from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CAPTURES = ROOT / "data" / "captures"
-DEFAULT_REPORTS = ROOT.resolve().parent / "reports"
+DEFAULT_REPORTS = ROOT.resolve() / "reports"
 
 LAYERS = {
     "albedo": ("albedo.R", "albedo.G", "albedo.B"),

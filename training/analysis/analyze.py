@@ -14,7 +14,7 @@ from common import (DEFAULT_CAPTURES, DEFAULT_REPORTS, INK_2, SERIES, find_seque
                     ssim_map)
 
 REGIONS = ("edge", "interior", "background")
-BLUR_SIGMAS = (0.5, 0.75, 1.0)
+BLUR_SIGMAS = (0.25, 0.35, 0.5, 0.75, 1.0)
 MAX_DISTANCE = 32  # px; the last distance bin collects everything further away
 SAMPLES_PER_FRAME = 50_000
 
