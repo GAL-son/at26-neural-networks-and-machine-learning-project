@@ -1,3 +1,10 @@
 {
-    "cmake.sourceDirectory": "C:/Users/GAL_son/Documents/.Dev/at26-neural-networks-and-machine-learning-project/renderer"
+    "cmake.sourceDirectory": "C:/Users/GAL_son/Documents/.Dev/at26-neural-networks-and-machine-learning-project/renderer",
+    "python-envs.pythonProjects": [
+        {
+            "path": "training",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
 }
