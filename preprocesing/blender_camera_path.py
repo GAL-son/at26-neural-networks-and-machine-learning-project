@@ -229,7 +229,7 @@ def generate(path):
     d = path.at(travel + la) - path.at(travel - 0.25 * la)
     horiz = np.hypot(d[:, 0], d[:, 1])
     bad = horiz < 1e-6 * max(la, 1e-6)
-    heading = np.degrees(np.unwrap(forward_fill(np.arctan2(d[:, 1], d[:, 0]))), bad)
+    heading = np.degrees(np.unwrap(forward_fill(np.arctan2(d[:, 1], d[:, 0])), bad))
     slope = forward_fill(np.degrees(np.arctan2(d[:, 2], horiz)), bad)
     
     heading_s = np.empty(n)
