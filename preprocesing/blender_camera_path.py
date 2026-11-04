@@ -44,7 +44,7 @@ SPEED_JITTER = 0.06
 
 LOOKAHEAD_M = 1.5
 TURN_TIME = 0.25
-BASE_PITCH_DEG = -0.4
+BASE_PITCH_DEG = -4.0
 SLOPE_FOLLOW = 0.5
 
 ACTIVITY_HZ = 0.05
@@ -78,7 +78,7 @@ def smooth_damp(current, target, velocity, smooth_time, dt):
     x = omega * dt
     decay = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
     change = current - target
-    temp = (velocity - omega * change) * dt
+    temp = (velocity + omega * change) * dt
     velocity = (velocity - omega * temp) * decay
     return target + (change + temp) * decay, velocity
 
@@ -87,7 +87,7 @@ def fbm_track(rng, t, hz, octaves=3):
     out = np.zeros(len(t))
     amp, freq, norm = 1.0, hz, 0.0
     for octave in range(octaves):
-        out += amp * np.array([noise.noise(Vector((ox + ti * freq, oy + 17.3 + octave, oz))) for ti in t])
+        out += amp * np.array([noise.noise(Vector((ox + ti * freq, oy + 17.3 * octave, oz))) for ti in t])
         norm += amp
         amp *= 0.5
         freq *= 2.0
@@ -147,13 +147,13 @@ def sample_curve(obj):
 
         cyclic = not ends
         start = ends[0] if ends else 0
-        order, prey, cur = [start], -1, start
+        order, prev, cur = [start], -1, start
         
         while True:
-            nxt = [v for v in adjacency[cur] if v != prey]
+            nxt = [v for v in adjacency[cur] if v != prev]
             if not nxt or nxt[0] == start:
                 break
-            prey, cur = cur, nxt[0]
+            prev, cur = cur, nxt[0]
             order.append(cur)
         
         if len(order) != count:
@@ -227,7 +227,7 @@ def generate(path):
     d = path.at(travel + la) - path.at(travel - 0.25 * la)
     horiz = np.hypot(d[:, 0], d[:, 1])
     bad = horiz < 1e-6 * max(la, 1e-6)
-    heading = forward_fill(np.degrees(np.unwrap(np.arctan2(d[:, 1], d[:, 0]))), bad)
+    heading = np.degrees(np.unwrap(forward_fill(np.arctan2(d[:, 1], d[:, 0]))), bad)
     slope = forward_fill(np.degrees(np.arctan2(d[:, 2], horiz)), bad)
     
     heading_s = np.empty(n)
@@ -265,7 +265,7 @@ def generate(path):
         p, vp = smooth_damp(p, tp, vp, tau, dt)
         look_yaw[i], look_pitch[i] = y, p
 
-    yaw_b = heading_s - pan_yaw + look_yaw + JITTER_DEG * track(4.0, 2)
+    yaw_b = heading_s + pan_yaw + look_yaw + JITTER_DEG * track(4.0, 2)
     pitch = np.clip(BASE_PITCH_DEG + SLOPE_FOLLOW * slope + pan_pitch + look_pitch + JITTER_DEG * track(4.0, 2), -PITCH_LIMIT_DEG, PITCH_LIMIT_DEG)
     
     # --- position
@@ -323,7 +323,7 @@ def build_preview(pos, yaw_b, pitch):
     if cam.name not in scene.collection.all_objects:
         scene.collection.objects.link(cam)
         
-    data.sensor.fit = "VERTICAL"
+    data.sensor_fit = "VERTICAL"
     data.angle_y = math.radians(RENDER_FOV_Y_DEG)
     data.clip_start, data.clip_end = 0.1, 10000.0
     
