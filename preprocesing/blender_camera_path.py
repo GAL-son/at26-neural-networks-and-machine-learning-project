@@ -322,16 +322,16 @@ def build_preview(pos, yaw_b, pitch):
     scene = bpy.context.scene  
     
     # Reuse the preview camera if it exists. Replace any non-camera object that took the name.  
-    cam = bpy.dataobjects.get(PREVIEW_CAMERA)  
+    cam = bpy.data.objects.get(PREVIEW_CAMERA)  
     if cam is not None and cam.type != "CAMERA":  
         bpy.data.objects.remove(cam)  
-            cam = None  
+        cam = None  
                 
     if cam is None:  
-        cam = bpy.data.objects.new(PREVIEI_CAMERA, bpy.data.cameras.new(PREVIEW_CAMERA))  
+        cam = bpy.data.objects.new(PREVIEW_CAMERA, bpy.data.cameras.new(PREVIEW_CAMERA))  
         
     if cam.name not in scene.collection.all_objects:  
-            scene.collection.objects.link(cam)  
+        scene.collection.objects.link(cam)  
 
     # Lens settings live on the camera data (bpy.types.Camera), not on the Object  
     lens = cam.data  
