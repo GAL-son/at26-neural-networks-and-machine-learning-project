@@ -69,6 +69,8 @@ PITCH_LIMIT_DEG = 75.0
 PREVIEW_CAMERA = "AA_previewCam"
 RENDER_FOV_Y_DEG = 80.0
 RENDER_RESOLUTION = (1920, 1080)
+RENDER_NEAR = 0.1
+RENDER_FAR = 10000
 
 def lerp(a, b, t):
     return a + (b - a) * t
@@ -316,30 +318,42 @@ def write_json(file, pos, yaw_b, pitch, curve_name):
         
     print(f"[camera_path] wrote {len(frames)} frames to {file}")
 
-def build_preview(pos, yaw_b, pitch):
-    scene = bpy.context.scene
-    data = bpy.data.cameras.get(PREVIEW_CAMERA) or bpy.data.cameras.new(PREVIEW_CAMERA)
-    cam = bpy.data.objects.get(PREVIEW_CAMERA) or bpy.data.objects.new(PREVIEW_CAMERA, data)
-    if cam.name not in scene.collection.all_objects:
-        scene.collection.objects.link(cam)
+def build_preview(pos, yaw_b, pitch):  
+    scene = bpy.context.scene  
+    
+    # Reuse the preview camera if it exists. Replace any non-camera object that took the name.  
+    cam = bpy.dataobjects.get(PREVIEW_CAMERA)  
+    if cam is not None and cam.type != "CAMERA":  
+        bpy.data.objects.remove(cam)  
+            cam = None  
+                
+    if cam is None:  
+        cam = bpy.data.objects.new(PREVIEI_CAMERA, bpy.data.cameras.new(PREVIEW_CAMERA))  
         
-    data.sensor_fit = "VERTICAL"
-    data.angle_y = math.radians(RENDER_FOV_Y_DEG)
-    data.clip_start, data.clip_end = 0.1, 10000.0
+    if cam.name not in scene.collection.all_objects:  
+            scene.collection.objects.link(cam)  
+
+    # Lens settings live on the camera data (bpy.types.Camera), not on the Object  
+    lens = cam.data  
+    lens.sensor_fit = "VERTICAL"  
+    lens.angle_y= math.radians(RENDER_FOV_Y_DEG) 
+    lens.clip_start, lens.clip_end = RENDER_NEAR, RENDER_FAR  
     
     cam.animation_data_clear()
-    cam.rotation_mode = "XYZ"
-    for i in range(len(pos)):
-        cam.location = Vector(pos[i])
-        cam.rotation_euler = (math.radians(90.0 + pitch[i]), 0.0, math.radians(yaw_b[i] - 90.0))
-        cam.keyframe_insert("location", frame=i)
-        cam.keyframe_insert("rotation_euler", frame=i)
+    cam.rotation_mode = "XYZ" 
+    for i in range(len(pos)):  
+        cam.location = Vector(pos[i])  
+        cam.rotation_euler = (math.radians(90.0 + pitch[i]), 0.0, math.radians(yaw_b[i] - 90.0))  
+        cam.keyframe_insert("location", frame=i)  
+        cam.keyframe_insert("rotation_euler", frame=i)  
         
-    scene.camera = cam
+    scene.camera = cam 
     scene.frame_start = 0
-    scene.frame_end = len(pos) - 1
-    scene.render.fps = int(round(FPS))
-    scene.render.resolution_x, scene.render.resolution_y = RENDER_RESOLUTION
+    scene.frame_end = len(pos) - 1  
+    scene.render.fps=int(round(FPS))  
+    scene.render.resolution_x, 
+    scene.render.resolution_y = RENDER_RESOLUTION  
+
 
 def main():
     curve = bpy.data.objects.get(CURVE_NAME) if CURVE_NAME else bpy.context.active_object
