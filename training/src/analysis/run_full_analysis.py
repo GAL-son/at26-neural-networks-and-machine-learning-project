@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent
 ROOT = HERE.parents[1]
 
 # (step, script, extra arguments in --quick mode)
