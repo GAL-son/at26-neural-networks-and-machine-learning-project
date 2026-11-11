@@ -1,8 +1,16 @@
 {
-    "scenesDir": "scenes",
+    "scenesDir": "../../../data/scenes",
     "scenes" :[
         "bedroom/iscv2.obj",
-        "sponza/sponza.obj"
+        "fireplace_room/fireplace_room.obj",
+        "gallery/gallery.obj",
+        "living_room/living_room.obj",
+        "lost-empire/lost_empire.obj",
+        "bistro/Exterior/exterior.obj",
+        "bistro/Interior/interior.obj",
+        "San_Miguel/san-miguel.obj",
+        "sponza/sponza.obj",
+        "sponza_d/sponza.obj"
     ],
-    "outputDir": "captures"
+    "outputDir": "../../../data/captures"
 }
