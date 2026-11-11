@@ -22,7 +22,7 @@ from .integrity import IntegrityAnalysis
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANALYSES = {cls.name: cls for cls in [IntegrityAnalysis]}
 DEFAULTS = {"dataset": "dataset.json", "scenes": "all", "stride": 1, "clip": 1, "limit": None, "device": "auto",
-            "workers": 4, "prefetch": 2, "outputDir": "../reports/analysis", "analyses": {}}
+            "workers": 4, "prefetch": 2, "outputDir": "../../reports/analysis", "analyses": {}}
 
 def run(config: dict) -> Path:
     dataset = load_dataset_config(config["dataset"])

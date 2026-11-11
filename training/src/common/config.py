@@ -19,7 +19,7 @@ def load_config(path: str | Path, defaults: dict, path_keys: tuple[str, ...] = (
 def load_dataset_config(path: str | Path) -> dict:
     """config/dataset.json: capturesDir, expectedFrames, splits {train, val, test: [capture folder names]}."""
     
-    config = load_config(path, {"capturesDir": "../data/captures", "expectedFrames": 600, "splits": {}}, ("capturesDir",))
+    config = load_config(path, {"capturesDir": "../../data/captures", "expectedFrames": 600, "splits": {}}, ("capturesDir",))
     
     unknown = set(config["splits"]) - set(SPLITS)
     if unknown:
