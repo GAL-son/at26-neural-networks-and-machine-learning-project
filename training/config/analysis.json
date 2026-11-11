@@ -1,0 +1,23 @@
+{
+    "dataset": "dataset.json",
+    "scenes": "all",
+    "stride": 1,
+    "clip": 1,
+    "limit": null,
+    "device": "auto",
+    "workers": 4,
+    "prefetch": 2,
+    "outputDir": "../reports/analysis",
+    "analyses": {
+        "integrity": {
+            "enabled": true,
+            "normalTolerance": 0.01,
+            "reprojection": true,
+            "reprojectionThresholdPx": 0.25
+        }
+    }
+}
+
+
+
+
