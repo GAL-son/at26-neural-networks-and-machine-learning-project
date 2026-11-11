@@ -1,0 +1,1 @@
+"""Exploratory analysis of the captured EXR sequences. Run with `python -m analysis`."""

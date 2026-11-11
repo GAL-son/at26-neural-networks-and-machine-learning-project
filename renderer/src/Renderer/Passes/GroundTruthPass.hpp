@@ -38,6 +38,7 @@ namespace Engine::Renderer
         uint32_t m_ssaaFactor;
 
         AllocatedImage m_superColor;
+        AllocatedImage m_superNormal;
         AllocatedImage m_superDepth;
         AllocatedImage m_output;
 
