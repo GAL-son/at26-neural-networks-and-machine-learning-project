@@ -35,7 +35,7 @@ The renderer has no notion of time and just renders one camera pose per frame. T
 | Pixel centre | `uv = ((x + 0.5) / W, (y + 0.5) / H)` |
 | Camera | Perspective, vertical FOV 80°, aspect 16:9, near 0.1, far 10000 |
 | Scene | Static. Only the camera moves. There is no model matrix, so object space = world space (Y up) |
-| Lighting | **None.** Every colour buffer is unlit albedo |
+| Lighting | **Simple** Single sun light source hardcoded in shader |
 | Frame rate | 60 fps (assumed, see above) |
 
 ## Channels
