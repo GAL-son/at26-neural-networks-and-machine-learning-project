@@ -7,7 +7,7 @@ name = "neural-antialiaser"
 version = "0.1.0"
 requires-python = ">=3.10"
 # Install the GPU build of torch FIRST (see src/README.md), otherwise pip pulls the CPU-only build from PyPI.
-dependencies = ["numpy>=1.24", "OpenEXR>=3.3", "torch>=2.4"]
+dependencies = ["numpy>=1.24", "OpenEXR>=3.3", "torch>=2.4", "matplotlib>=3.8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
