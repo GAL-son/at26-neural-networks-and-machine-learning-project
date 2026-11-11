@@ -27,16 +27,25 @@ namespace Engine::Renderer
             m_superExtent,
             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_IMAGE_ASPECT_COLOR_BIT);
+            
+        // Dodano bufor normalnych (analogicznie do GeometryPass)
+        m_superNormal = CreateImage(
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            m_superExtent,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT);
+
         m_superDepth = CreateImage(
             VK_FORMAT_D32_SFLOAT,
             m_superExtent,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT);
+            
         m_output = CreateImage(
             VK_FORMAT_R16G16B16A16_SFLOAT,
             m_outputExtent,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            VK_IMAGE_ASPECT_COLOR_BIT),
+            VK_IMAGE_ASPECT_COLOR_BIT);
 
         CreateRenderPassCustom();
         CreateFramebufferCustom();
@@ -66,7 +75,7 @@ namespace Engine::Renderer
         AllocatedImage result;
         VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.format = format,
+        imageInfo.format = format;
         imageInfo.extent = {extent.width, extent.height, 1};
         imageInfo.mipLevels = 1;
         imageInfo.arrayLayers = 1;
@@ -81,7 +90,7 @@ namespace Engine::Renderer
 
         if (vmaCreateImage(m_context.getAllocator(), &imageInfo, &allocInfo, &result.image, &result.allocation, nullptr) != VK_SUCCESS)
         {
-            throw std::runtime_error("GroundTrut: Failed to allocate image");
+            throw std::runtime_error("GroundTruth: Failed to allocate image");
         }
 
         VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -91,7 +100,7 @@ namespace Engine::Renderer
         viewInfo.subresourceRange = {aspect, 0, 1, 0, 1};
 
         if (vkCreateImageView(m_device, &viewInfo, nullptr, &result.view) != VK_SUCCESS)
-            throw std::runtime_error("GroundTrutPass: Failed to create image view for image:");
+            throw std::runtime_error("GroundTruthPass: Failed to create image view for image:");
 
         return result;
     }
@@ -107,7 +116,8 @@ namespace Engine::Renderer
 
     void GroundTruthPass::CreateRenderPassCustom()
     {
-        std::array<VkAttachmentDescription, 2> attachments{};
+        // Teraz mamy 2 attachmenty kolorów (Color, Normal) + 1 głębi = 3 attachmenty łącznie
+        std::array<VkAttachmentDescription, 3> attachments{};
 
         // 0: Supersampled color
         attachments[0].format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -119,31 +129,44 @@ namespace Engine::Renderer
         attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachments[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        // 1: Supersampled depth (only used for the pass)
-        attachments[1].format = VK_FORMAT_D32_SFLOAT;
+        // 1: Supersampled normal (dodane)
+        attachments[1].format = VK_FORMAT_R16G16B16A16_SFLOAT;
         attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
         attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachments[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkAttachmentReference colorReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        VkAttachmentReference depthRefrence{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        // 2: Supersampled depth (przesunięty indeks na 2)
+        attachments[2].format = VK_FORMAT_D32_SFLOAT;
+        attachments[2].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[2].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[2].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        std::array<VkAttachmentReference, 2> colorReferences = {
+            VkAttachmentReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+            VkAttachmentReference{1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
+        };
+        VkAttachmentReference depthReference{2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorReference;
-        subpass.pDepthStencilAttachment = &depthRefrence;
+        subpass.colorAttachmentCount = static_cast<uint32_t>(colorReferences.size());
+        subpass.pColorAttachments = colorReferences.data();
+        subpass.pDepthStencilAttachment = &depthReference;
 
-        // Expose color to the downsample compute shader
+        // Zależność dla kolorów / normalnych
         VkSubpassDependency colorDependency{};
         colorDependency.srcSubpass = 0;
         colorDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
         colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        colorDependency.dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        colorDependency.dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         colorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         colorDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -163,7 +186,8 @@ namespace Engine::Renderer
 
     void GroundTruthPass::CreateFramebufferCustom()
     {
-        std::array<VkImageView, 2> views = {m_superColor.view, m_superDepth.view};
+        // Uwzględnienie widoku normalnych w framebufferze
+        std::array<VkImageView, 3> views = {m_superColor.view, m_superNormal.view, m_superDepth.view};
 
         VkFramebufferCreateInfo framebufferInfo{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
         framebufferInfo.renderPass = m_renderPass;
@@ -180,7 +204,7 @@ namespace Engine::Renderer
 
     void GroundTruthPass::CreateGraphicsPipeline()
     {
-         VkPushConstantRange pushConstantRange{};
+        VkPushConstantRange pushConstantRange{};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         pushConstantRange.offset = 0;
         pushConstantRange.size = sizeof(glm::mat4) * 2;
@@ -241,12 +265,17 @@ namespace Engine::Renderer
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
 
-        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        // Dwa attachmenty kolorów wymagają dwóch konfiguracji blendingu
+        std::array<VkPipelineColorBlendAttachmentState, 2> colorBlendAttachments{};
+        for (auto &attachment : colorBlendAttachments)
+        {
+            attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+            attachment.blendEnable = VK_FALSE;
+        }
 
         VkPipelineColorBlendStateCreateInfo colorBlending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+        colorBlending.pAttachments = colorBlendAttachments.data();
 
         std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
         VkPipelineDynamicStateCreateInfo dynamicState{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
@@ -369,9 +398,11 @@ namespace Engine::Renderer
 
     void GroundTruthPass::Begin(VkCommandBuffer commandBuffer, VkExtent2D /*extent*/)
     {
-        std::array<VkClearValue, 2> clearValues{};
+        // 3 wartości czyszczenia: Color, Normal, Depth
+        std::array<VkClearValue, 3> clearValues{};
         clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
-        clearValues[1].depthStencil = {1.0f, 0};
+        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Wyczyszczenie normalnych
+        clearValues[2].depthStencil = {1.0f, 0};
 
         VkRenderPassBeginInfo renderPassInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         renderPassInfo.renderPass = m_renderPass;
@@ -451,7 +482,6 @@ namespace Engine::Renderer
 
     void GroundTruthPass::Cleanup()
     {
-        // VK allows to pass nullhandle so nullcheck is not neseseary
         vkDestroyPipeline(m_device, m_downsamplePipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_downsamplePipelineLayout, nullptr);
         vkDestroyDescriptorPool(m_device, m_downsamplePool, nullptr);
@@ -467,7 +497,6 @@ namespace Engine::Renderer
 
         vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
-        // Reset handles if Cleanup() can be called multiple times (e.g., resize/recreate)
         m_downsamplePipeline = VK_NULL_HANDLE;
         m_downsamplePipelineLayout = VK_NULL_HANDLE;
         m_downsamplePool = VK_NULL_HANDLE;
@@ -478,6 +507,7 @@ namespace Engine::Renderer
 
         DestroyImage(m_output);
         DestroyImage(m_superColor);
+        DestroyImage(m_superNormal); // Zwolnienie nowego zasobu normalnych
         DestroyImage(m_superDepth);
     }
 }
