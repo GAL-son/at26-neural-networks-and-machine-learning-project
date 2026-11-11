@@ -1,109 +1,121 @@
-"""Base class of an analysis and a streaming statistics helper."""
+"""Integrity scan (plan section 1).
+- every frame readable, no NaN / Inf, no missing frames, header consistent and matching the file name;
+- value ranges: albedo / GT in [0, 1], unit normals, depth in [near, far], background depth = far,
+  background motion = 0, frame 0 without motion;
+- per-channel statistics over all pixels and over geometry only (input for normalisation);
+- motion vectors vs. a reprojection of depth through the header matrices: confirms the motion convention
+  and the matrix layout (M = stored.T per OUTPUT_FORMAT.md, or as stored).
+"""
 from __future__ import annotations
 
+from collections import defaultdict
 import numpy as np
 import torch
 
-class Analysis:
-    """Per scene the runner calls begin_scene(), then update() for every frame in index order (already on the device)
-    or skip() for an unreadable one, then end_scene(). `previous` is frame index - 1 when it was loaded, else None.
-    Don't keep frames around (a sequence is ~32 GB); accumulate statistics instead.
-    """
-    name = ""
+from common.exr import HEIGHT, LAYERS, WIDTH
+from .base import Analysis, ChannelStats
+from .ops import reproject
 
-    def __init__(self, params: dict, device: torch.device):
-        self.params, self.device = params, device
+class IntegrityAnalysis(Analysis):
+    name = "integrity"
 
     def begin_scene(self, scene: dict) -> None:
-        """scene: {"scene", "split", "framesOnDisk", "missingFrames"}."""
-        self.scene = scene
-
-    def update(self, frame, previous) -> None:
-        raise NotImplementedError
+        super().begin_scene(scene)
+        self.checked = 0
+        self.unreadable = []
+        self.issues = defaultdict(list)  # issue -> frame indices
+        self.first_header = None
+        self.stats = {region: {layer: ChannelStats(name.split(".")[1] for name in names)
+                               for layer, names in LAYERS.items()} for region in ("all", "geometry")}
+        self.motion_px = ChannelStats(["magnitude"])
+        self.log_depth = ChannelStats(["log10Z"])
+        self.reprojection = {"transposed": np.zeros(3), "asStored": np.zeros(3)}  # pixels, error sum, pixels < 0.5 px
 
     def skip(self, index: int, error: str) -> None:
-        pass
+        self.unreadable.append({"index": index, "error": error})
+
+    def update(self, frame, previous) -> None:
+        self.checked += 1
+        index, header = frame.index, frame.header
+        near, far = header["nearPlane"], header["farPlane"]
+        vp = np.asarray(header["viewProjection"], np.float64)
+        prev_vp = np.asarray(header["prevViewProjection"], np.float64)
+        height, width = frame.depth.shape[-2:]
+        geometry = frame.geometry_mask()
+        geo, depth = geometry[0], frame.depth[0]
+        to_px = torch.tensor([width, height], device=frame.motion.device, dtype=frame.motion.dtype).view(2, 1, 1)
+        motion_px = frame.motion * to_px
+
+        for layer in LAYERS:
+            self.stats["all"][layer].update(getattr(frame, layer))
+            self.stats["geometry"][layer].update(getattr(frame, layer), geometry)
+        self.motion_px.update(motion_px.norm(dim=0, keepdim=True), geometry)
+        self.log_depth.update(frame.depth.clamp_min(1e-6).log10(), geometry)
+
+        signature = ((height, width), header["ssaaFactor"], near, far)
+        self.first_header = self.first_header or signature
+        normal_error = torch.where(geo, (frame.normal.norm(dim=0) - 1).abs(), 0.0).amax()
+        checks = {
+            "unexpectedResolution": (height, width) != (HEIGHT, WIDTH),
+            "headerChanged": signature != self.first_header,
+            "headerIndexMismatch": header["frameIndex"] != index,
+            "albedoOutOfRange": bool(((frame.albedo < 0) | (frame.albedo > 1)).any()),
+            "gtOutOfRange": bool(((frame.gt < 0) | (frame.gt > 1)).any()),
+            "depthOutOfRange": bool((geo & ((depth < near * 0.999) | (depth > far * 1.001))).any()),
+            "backgroundDepthNotFar": bool((~geo & (depth < far * 0.999)).any()),
+            "backgroundMotion": bool((~geo & (frame.motion != 0).any(0)).any()),
+            "normalNotUnitLength": float(normal_error) > self.params.get("normalTolerance", 0.01),
+            "frame0Motion": index == 0 and bool((frame.motion != 0).any()),
+            "frame0PrevViewProjectionDiffers": index == 0 and not np.array_equal(vp, prev_vp),
+        }
+        for issue, failed in checks.items():
+            if failed:
+                self.issues[issue].append(index)
+
+        if self.params.get("reprojection", True) and index > 0 and not np.array_equal(vp, prev_vp):
+            for layout, (m, prev_m) in {"transposed": (vp.T, prev_vp.T), "asStored": (vp, prev_vp)}.items():
+                predicted, _, valid = reproject(frame.depth, m, prev_m, near, far)
+                error = (predicted * to_px - motion_px).norm(dim=0)
+                mask = geo & valid & error.isfinite()
+                self.reprojection[layout] += torch.stack([
+                    mask.sum().float(), torch.where(mask, error, 0.0).sum(), (mask & (error < 0.5)).sum().float(),
+                ]).cpu().double().numpy()
 
     def end_scene(self) -> dict:
-        """JSON-serialisable result for the current scene."""
-        raise NotImplementedError
+        reprojection = {layout: {"meanErrorPx": total / pixels if pixels else None,
+                                 "fractionBelow0.5Px": below / pixels if pixels else None}
+                        for layout, (pixels, total, below) in self.reprojection.items()}
+        errors = {layout: result["meanErrorPx"] for layout, result in reprojection.items()}
+        best = min(errors, key=errors.get) if None not in errors.values() else None
+        non_finite = {layer: stats.non_finite for layer, stats in self.stats["all"].items()}
+
+        problems = [f"{len(self.scene['missingFrames'])} missing frame(s)"] if self.scene["missingFrames"] else []
+        problems += [f"{len(self.unreadable)} unreadable frame(s)"] if self.unreadable else []
+        problems += [f"{issue} in {len(frames)} frame(s)" for issue, frames in self.issues.items()]
+        problems += [f"{count} non-finite value(s) in {layer}" for layer, count in non_finite.items() if count]
+        if best and errors[best] >= self.params.get("reprojectionThresholdPx", 0.25):
+            problems.append("motion vectors don't match the depth reprojection")
+        elif best == "asStored":
+            problems.append("matrix layout is 'asStored', not 'transposed' as documented")
+
+        return {
+            "ok": not problems,
+            "problems": problems,
+            **self.scene,
+            "framesChecked": self.checked,
+            "unreadableFrames": self.unreadable,
+            "header": dict(zip(("size", "ssaaFactor", "near", "far"), self.first_header or ())),
+            "issueFrames": {issue: frames[:20] for issue, frames in self.issues.items()},  # first 20 per issue
+            "reprojection": {**reprojection, "bestLayout": best},
+            "motionMagnitudePx": self.motion_px.as_dict()["magnitude"],
+            "depthLog10": self.log_depth.as_dict()["log10Z"],
+            "stats": {region: {layer: stats.as_dict() for layer, stats in layers.items()}
+                      for region, layers in self.stats.items()},
+        }
 
     def describe(self, result: dict) -> str:
-        """One console line for a scene result."""
-        return ""
-
-class ChannelStats:
-    """Per-channel count / NaN / Inf / min / max / mean / std over many frames.
-    Per-frame reductions run on the device in float32 (works on DirectML); totals add up on the CPU in float64."""
-
-    def __init__(self, channels):
-        self.channels = list(channels)
-        self.sums = np.zeros((5, len(self.channels)))  # count, sum, sum of squares, NaN, Inf
-        self.min = np.full(len(self.channels), np.inf)
-        self.max = np.full(len(self.channels), -np.inf)
-
-    def update(self, data: torch.Tensor, mask: torch.Tensor | None = None) -> None:
-        """data (C, H, W); mask (1, H, W) bool restricts the region."""
-        x = data.flatten(1)
-        region = torch.ones_like(x, dtype=torch.bool) if mask is None else mask.flatten(1).expand_as(x)
-        valid = region & x.isfinite()
-        values = torch.where(valid, x, 0.0)
-        row = torch.stack([
-            valid.sum(1).float(), values.sum(1), (values * values).sum(1),
-            (region & x.isnan()).sum(1).float(), (region & x.isinf()).sum(1).float(),
-            torch.where(valid, x, float("inf")).amin(1), torch.where(valid, x, float("-inf")).amax(1),
-        ]).cpu().double().numpy()
-        self.sums += row[:5]
-        self.min = np.minimum(self.min, row[5])
-        self.max = np.maximum(self.max, row[6])
-
-    @property
-    def non_finite(self) -> int:
-        return int(self.sums[3:].sum())
-
-    def as_dict(self) -> dict:
-        count, total, total_sq, nan, inf = self.sums
-        mean = total / np.maximum(count, 1)
-        std = np.sqrt(np.maximum(total_sq / np.maximum(count, 1) - mean ** 2, 0))
-        return {name: {"count": int(count[i]), "nan": int(nan[i]), "inf": int(inf[i]), "min": float(self.min[i]),
-                       "max": float(self.max[i]), "mean": float(mean[i]), "std": float(std[i])}
-                for i, name in enumerate(self.channels)}
-
-class Histogram:
-    """Value distribution over fixed bin edges, accumulated over many frames; gives approximate quantiles.
-    Counting is done with comparisons (no histc / bucketize), so it runs on every backend."""
-
-    def __init__(self, edges):
-        self.edges = np.asarray(edges, dtype=np.float64)
-        self.total = 0.0
-        self.at_least = np.zeros(len(self.edges))  # number of values >= each edge
-
-    def update(self, values: torch.Tensor, mask: torch.Tensor | None = None) -> None:
-        v = values.flatten()
-        m = torch.ones_like(v, dtype=torch.bool) if mask is None else mask.flatten()
-        counts = torch.stack([m.sum()] + [(m & (v >= float(edge))).sum() for edge in self.edges])
-        counts = counts.float().cpu().double().numpy()
-        self.total += counts[0]
-        self.at_least += counts[1:]
-
-    def quantile(self, q: float) -> float | None:
-        """Linear interpolation inside the bin; None when there is no data or the quantile is past the last edge."""
-        if not self.total:
-            return None
-        below = self.total - self.at_least
-        target = q * self.total
-        i = int(np.searchsorted(below, target))
-        if i == 0:
-            return float(self.edges[0])
-        if i == len(self.edges):
-            return None
-        span = below[i] - below[i - 1]
-        t = (target - below[i - 1]) / span if span else 0.0
-        return float(self.edges[i - 1] + t * (self.edges[i] - self.edges[i - 1]))
-
-    def fractions(self) -> list[float]:
-        """Share of values below the first edge, in each [edge_i, edge_i+1) and at / above the last edge."""
-        if not self.total:
-            return []
-        counts = np.concatenate([[self.total], self.at_least]) - np.concatenate([self.at_least, [0.0]])
-        return (counts / self.total).tolist()
+        best = result["reprojection"]["bestLayout"]
+        error = f"{result['reprojection'][best]['meanErrorPx']:.3f}px ({best})" if best else "n/a"
+        status = "OK" if result["ok"] else "PROBLEMS: " + "; ".join(result["problems"])
+        return (f"{result['framesChecked']} frames, mean motion {result['motionMagnitudePx']['mean']:.2f}px, "
+                f"reprojection error {error} | {status}")
