@@ -10,7 +10,7 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
     vec3 sunDir   = normalize(vec3(0.5, 1.0, 0.3));
-    vec3 sunColor = vec3(1.0, 0.95, 0.8) * 2.0;
+    vec3 sunColor = vec3(1.0, 0.95, 0.8) * 0.8;
     vec3 ambient  = vec3(0.2);
 
     vec3 norm = normalize(inNormal);
