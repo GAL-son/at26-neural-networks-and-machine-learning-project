@@ -17,11 +17,14 @@ from common.config import SPLITS, load_config, load_dataset_config
 from common.dataset import find_scenes, iter_frames, missing_frames, sample_indices
 from common.device import describe_device, select_device
 
+from .consistency import ConsistencyAnalysis
 from .integrity import IntegrityAnalysis
+from .residual import ResidualAnalysis
+from .temporal import TemporalAnalysis
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANALYSES = {cls.name: cls for cls in [IntegrityAnalysis]}
-DEFAULTS = {"dataset": "dataset.json", "scenes": "all", "stride": 1, "clip": 1, "limit": None, "device": "auto",
+ANALYSES = {cls.name: cls for cls in [IntegrityAnalysis, ConsistencyAnalysis, ResidualAnalysis, TemporalAnalysis]}
+DEFAULTS = {"dataset": "train.json", "scenes": "all", "stride": 1, "clip": 1, "limit": None, "device": "auto",
             "workers": 4, "prefetch": 2, "outputDir": "../../reports/analysis", "analyses": {}}
 
 def run(config: dict) -> Path:
@@ -87,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, help="max frames per scene")
     args = parser.parse_args(argv)
 
+
     config = load_config(args.config, DEFAULTS, ("dataset", "outputDir"))
     if args.scenes:
         single = len(args.scenes) == 1 and args.scenes[0] in ("all", *SPLITS)
@@ -95,3 +99,5 @@ def main(argv: list[str] | None = None) -> int:
         config["limit"] = args.limit
     run(config)
     return 0
+
+

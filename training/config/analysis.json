@@ -14,6 +14,29 @@
             "normalTolerance": 0.01,
             "reprojection": true,
             "reprojectionThresholdPx": 0.25
+        },
+        "consistency": {
+            "enabled": true,
+            "blockSize": 8,
+            "brightnessTolerance": 0.02,
+            "blockErrorThreshold": 0.02,
+            "shiftThresholdPx": 0.05,
+            "clipThreshold": 0.01
+        },
+        "residual": {
+            "enabled": true,
+            "changeThreshold": 0.0078,
+            "depthTolerance": 0.02,
+            "creaseDegrees": 30,
+            "patchSize": 256,
+            "flatPatchPsnr": 45
+        },
+        "temporal": {
+            "enabled": true,
+            "matrixLayout": "transposed",
+            "occlusionTolerance": 0.02,
+            "staticMotionPx": 0.1,
+            "fastMotionPx": 4.0
         }
     }
 }
