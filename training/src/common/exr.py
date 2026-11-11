@@ -47,19 +47,16 @@ def load_frame(path: str | Path, scene: str | None = None) -> Frame:
     """Read a whole frame. `scene` defaults to the folder name (e.g. "sponza_sponza")."""
     path = Path(path)
     with OpenEXR.File(str(path), separate_channels=True) as exr:
+        # Copy everything out before the file closes: closing clears exr.header() and frees its arrays.
+        # Only the renderer's attributes are kept; the rest (channel list, windows, compression) are
+        # OpenEXR objects that can't be pickled, and DataLoader workers pickle every frame they return.
         raw = exr.header()
+        missing = [key for key in HEADER_KEYS if key not in raw]
+        if missing:
+            raise KeyError(f"missing header attribute(s) {missing}")
+        header = {key: np.array(raw[key]) if isinstance(raw[key], np.ndarray) else raw[key] for key in HEADER_KEYS}
         channels = exr.channels()
         layers = {layer: torch.from_numpy(np.stack([channels[name].pixels for name in names]))
                   for layer, names in LAYERS.items()}
-
-    missing = [key for key in HEADER_KEYS if key not in raw]
-    if missing:
-        raise KeyError(f"missing header attribute(s) {missing}")
-    # Only the renderer's attributes: the rest (channel list, windows, compression) are OpenEXR objects
-    # that can't be pickled, and DataLoader workers pickle every frame they return.
-    header = {key: raw[key] for key in HEADER_KEYS}
     return Frame(scene or path.parent.name, int(FRAME_FILE.fullmatch(path.name).group(1)), header=header, **layers)
-
-
-
 
