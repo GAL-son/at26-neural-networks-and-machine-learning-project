@@ -1,5 +1,5 @@
 {
-    "capturesDir": "../data/captures",
+    "capturesDir": "../../data/captures",
     "expectedFrames": 600,
     "splits": {
         "train": [],

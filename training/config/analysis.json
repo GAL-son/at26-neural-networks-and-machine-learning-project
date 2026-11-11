@@ -1,5 +1,5 @@
 {
-    "dataset": "dataset.json",
+    "dataset": "train.json",
     "scenes": "all",
     "stride": 1,
     "clip": 1,
@@ -7,7 +7,7 @@
     "device": "auto",
     "workers": 4,
     "prefetch": 2,
-    "outputDir": "../reports/analysis",
+    "outputDir": "../../reports/analysis",
     "analyses": {
         "integrity": {
             "enabled": true,
