@@ -157,20 +157,20 @@ def train(config: dict, resume: Path | None = None) -> Path:
         opt.zero_grad(set_to_none=True)
         scaler.scale(total).backward()
         scaler.unscale_(opt)
-        grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), o["gradClip"]))
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), o["gradClip"])
         scaler.step(opt)
         scaler.update()
         sched.step()
         step += 1
 
         for k, v in {**terms, "total": total}.items():
-            sums[k] = sums.get(k, 0.0) + float(v)
+            sums[k] = sums.get(k, 0.0) + v.detach()
 
         if step % config["log"]["every"] == 0:
             n, elapsed = config["log"]["every"], time.perf_counter() - tic
-            record = {"kind": "train", "step": step, "lr": sched.get_last_lr()[0], "gradNorm": grad_norm,
+            record = {"kind": "train", "step": step, "lr": sched.get_last_lr()[0], "gradNorm": float(grad_norm),
                       "cropsPerSec": n * o["batchSize"] / elapsed, "dataWait": wait / elapsed,
-                      **{k: v / n for k, v in sums.items()}}
+                      **{k: float(v) / n for k, v in sums.items()}}
             write(record)
             print(f"\rstep {step}: loss {record['total']:.5f} (l1 {record['l1']:.5f}, ssim {record['ssim']:.4f}, "
                   f"temporal {record['temporal']:.5f}), {record['cropsPerSec']:.0f} seq/s, "
@@ -184,6 +184,7 @@ def train(config: dict, resume: Path | None = None) -> Path:
     return run
 
 def main(argv=None) -> int:
+    torch.backends.cudnn.benchmark = True
     parser = argparse.ArgumentParser(prog="python -m train", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "config" / "training.json")
