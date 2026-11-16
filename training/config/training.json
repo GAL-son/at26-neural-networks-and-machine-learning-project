@@ -1,6 +1,6 @@
 {
     "dataset": "dataset.json",
-    "outputDir": "../../runs",
+    "outputDir": "../../reports/runs",
     "device": "auto",
     "seed": 0,
     "data": {
