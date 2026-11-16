@@ -1,5 +1,5 @@
 {
-    "dataset": "train.json",
+    "dataset": "dataset.json",
     "scenes": "all",
     "stride": 1,
     "clip": 1,

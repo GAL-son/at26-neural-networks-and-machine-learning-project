@@ -37,5 +37,11 @@
     "log": {
         "every": 50,
         "imagesEvery": 10000
+    },
+    "inputs": {
+        "depthScale": 0.35
+    },
+    "model": {
+        "channels" : [32, 36, 128, 236]
     }
 }

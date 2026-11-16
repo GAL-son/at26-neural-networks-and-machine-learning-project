@@ -24,7 +24,7 @@ from .temporal import TemporalAnalysis
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANALYSES = {cls.name: cls for cls in [IntegrityAnalysis, ConsistencyAnalysis, ResidualAnalysis, TemporalAnalysis]}
-DEFAULTS = {"dataset": "train.json", "scenes": "all", "stride": 1, "clip": 1, "limit": None, "device": "auto",
+DEFAULTS = {"dataset": "dataset.json", "scenes": "all", "stride": 1, "clip": 1, "limit": None, "device": "auto",
             "workers": 4, "prefetch": 2, "outputDir": "../../reports/analysis", "analyses": {}}
 
 def run(config: dict) -> Path:
