@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
-from analysis.ops import reproject, warp
+from analysis.ops import reproject
 from common.exr import load_frame
 
 from .inputs import build_frame, history_valid, warp
 from .losses import ssim
 
-import torch.nn.functional as F
 
 def psnr(a, b):
     return float(10 * torch.log10(1 / ((a - b) ** 2).mean().clamp_min(1e-12)))

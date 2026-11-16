@@ -1,4 +1,6 @@
 # Colours: validated categorical slots (colour-blind safe) + one-hue ramp for ordered values.
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 
