@@ -13,6 +13,8 @@ from common.plotting import INK2, MUTED, SERIES, save  # shared style (moved fro
 from common.config import load_config
 
 CONFIG = Path(__file__).resolve().parents[2] / "config" / "training.json"
+TITLES = {"total": "Total (weighted)", "l1": "L1", "ssim": "1 - SSIM", "temporal": "Temporal"}
+
 
 def ema(values, alpha=0.05):
     out, acc = [], None
@@ -28,18 +30,24 @@ def load(run: Path):
         (train if record["kind"] == "train" else val).append(record)
     return train, val
 
-def losses(train, out):
-    keys = [k for k in ("l1", "ssim", "temporal") if any(k in r for r in train)]
-    fig, axes = plt.subplots(1, len(keys), figsize=(5 * len(keys), 3.5), squeeze=False)
+def losses(train, val, out):
+    keys = [k for k in TITLES if any(k in r for r in train)]
+    with_loss = [r for r in val if all("loss" in m for m in r["scenes"].values())]  # older runs: train only
+    fig, axes = plt.subplots(1, len(keys), figsize=(4.5 * len(keys), 3.5), squeeze=False)
     for ax, key in zip(axes[0], keys):
         steps = [r["step"] for r in train if key in r]
         values = [r[key] for r in train if key in r]
-        ax.plot(steps, values, color=SERIES[0], alpha=0.25, lw=1)  # raw
-        ax.plot(steps, ema(values), color=SERIES[0], lw=2)          # smoothed
+        ax.plot(steps, values, color=SERIES[0], alpha=0.25, lw=1)                       # raw
+        ax.plot(steps, ema(values), color=SERIES[0], lw=2, label="train (hard crops)")  # smoothed
+        if with_loss:
+            ax.plot([r["step"] for r in with_loss],
+                    [np.mean([m["loss"][key] for m in r["scenes"].values()]) for r in with_loss],
+                    color=SERIES[1], lw=2, marker="o", ms=3, label="val (full frames, mean of scenes)")
         ax.set_yscale("log")
-        ax.set_title(f"{key} loss (faint: raw, solid: smoothed)")
+        ax.set_title(TITLES[key])
         ax.set_xlabel("step")
-    save(fig, out / "01_losses.png", "Training loss")
+    axes[0][0].legend(loc="upper right")
+    save(fig, out / "01_losses.png", "Training vs validation loss (faint: raw train, solid: smoothed)")
 
 def validation(val, out):
     names = sorted(val[0]["scenes"])
@@ -94,7 +102,7 @@ def main(argv=None) -> int:
     train, val = load(run)
     out = run / "plots"
     out.mkdir(exist_ok=True)
-    losses(train, out)
+    losses(train, val, out)
     if val:
         validation(val, out)
     health(train, out)

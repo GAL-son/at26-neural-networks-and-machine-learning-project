@@ -5,25 +5,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from analysis.ops import reproject
 from common.exr import load_frame
 
 from .inputs import build_frame, history_valid, warp
-from .losses import ssim
+from .losses import ssim, temporal
 
 
 def psnr(a, b):
     return float(10 * torch.log10(1 / ((a - b) ** 2).mean().clamp_min(1e-12)))
-
-def usable(frame, previous, tolerance=0.02):
-    """(H, W) pixels with valid history: geometry, source on screen, not disoccluded (as in analysis/temporal.py)."""
-    h = frame.header
-    vp, prev_vp = (np.asarray(h[k], np.float64).T for k in ("viewProjection", "prevViewProjection"))
-    _, expected, in_front = reproject(frame.depth, vp, prev_vp, h["nearPlane"], h["farPlane"])
-    warped_depth, inside = warp(previous.depth, frame.motion, mode="nearest")
-    moved = (warped_depth[0] - expected).abs() > tolerance * expected.abs()
-    return frame.geometry_mask()[0] & inside & in_front & ~moved
-
 
 class ValSet:
     """Full-frame clips of the val scenes, run recurrently exactly like inference (frame 0 of a clip: no history).
@@ -50,11 +39,15 @@ class ValSet:
         return clip
 
     @torch.no_grad()
-    def evaluate(self, model, device, amp, previews=False):
+    def evaluate(self, model, device, amp, weights, previews=False):
+        """weights: the training loss weights. The val loss uses the same terms as training (on the raw output,
+        temporal over history-valid pixels), averaged over all frames of all clips of a scene."""
+        
         model.eval()
         results, tiles = {}, {}
         for name, clips in self.clips.items():
             rows, errors = [], np.zeros(3)  # error vs warped previous: output, input, GT
+            sums, frames, pairs = {"l1": 0.0, "ssim": 0.0, "temporal": 0.0}, 0, 0
             for c, clip in enumerate(clips):
                 prev = None
                 for item in clip:
@@ -66,21 +59,37 @@ class ValSet:
                         history, inside = warp(prev[0], motion)
                         ok = (inside & valid).float()
                     with torch.autocast(device.type, dtype=torch.float16, enabled=amp):
-                        out = model(torch.cat([x, history, ok], dim=1)).float().clamp(0, 1)
+                        raw = model(torch.cat([x, history, ok], dim=1)).float()
+                    out = raw.clamp(0, 1)
+
+                    # loss terms, defined exactly as in training (runner.unrolled_loss)
+                    if prev is not None or weights["firstStep"]:
+                        sums["l1"] += float((raw - y).abs().mean())
+                        sums["ssim"] += float(1 - ssim(raw, y))
+                        frames += 1
+                    if prev is not None:
+                        sums["temporal"] += float(temporal(raw, prev[3], y, prev[2], motion, ok > 0.5))
+                        pairs += 1
+
                     if prev is not None:
                         rows.append([psnr(out, y), psnr(x[:, :3], y), float(ssim(out, y)), float(ssim(x[:, :3], y))])
                         mask = ok[:, 0] > 0.5
                         for i, (a, b) in enumerate([(out, prev[0]), (x[:, :3], prev[1]), (y, prev[2])]):
-                            errors[i] += float((a - warp(b, motion)[0]).abs().mean(1)[mask].mean())
-                    prev = (out, x[:, :3], y)
+                            e = (a - warp(b, motion)[0]).abs().mean(1)[mask]
+                            errors[i] += float(e.mean()) if e.numel() else 0.0
+                    prev = (out, x[:, :3], y, raw)
                 if previews and c == 0:
                     tiles[name] = self._tile(x[0, :3], out[0], y[0])
             p_out, p_base, s_out, s_base = np.mean(rows, axis=0)
+            loss = {"l1": sums["l1"] / frames, "ssim": sums["ssim"] / frames, "temporal": sums["temporal"] / pairs}
+            loss["total"] = sum(weights[k] * loss[k] for k in ("l1", "ssim", "temporal"))
             results[name] = {"psnr": p_out, "psnrBaseline": p_base, "psnrGain": p_out - p_base,
                              "ssim": s_out, "ssimBaseline": s_base, "ssimGain": s_out - s_base,
-                             "flicker": errors[0] / errors[2], "flickerInput": errors[1] / errors[2]}
+                             "flicker": errors[0] / errors[2], "flickerInput": errors[1] / errors[2],
+                             "loss": loss}
         model.train()
         return results, tiles
+
 
     @staticmethod
     def _tile(x, out, y, size=256):

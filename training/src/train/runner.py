@@ -123,12 +123,14 @@ def train(config: dict, resume: Path | None = None) -> Path:
 
     def validate(images: bool):
         nonlocal best
-        metrics, tiles = val.evaluate(model, device, amp, previews=images)
+       
+        metrics, tiles = val.evaluate(model, device, amp, w, previews=images)   # ema.module if you added EMA
         write({"kind": "val", "step": step, "scenes": metrics})
         for name, tile in tiles.items():
             plt.imsave(run / "images" / f"{step:07d}_{name}.png", tile.permute(1, 2, 0).numpy())
         gain = sum(m["psnrGain"] for m in metrics.values()) / len(metrics)
-        print(f"\n  val PSNR gain {gain:+.2f} dB | " + ", ".join(
+        val_loss = sum(m["loss"]["total"] for m in metrics.values()) / len(metrics)
+        print(f"\n  val loss {val_loss:.5f}, PSNR gain {gain:+.2f} dB | " + ", ".join(
             f"{n}: {m['psnrGain']:+.2f} dB, flicker {m['flicker']:.2f} (input {m['flickerInput']:.2f})"
             for n, m in metrics.items()))
         if step:
