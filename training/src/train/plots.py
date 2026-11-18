@@ -10,6 +10,10 @@ import numpy as np
 
 from common.plotting import INK2, MUTED, SERIES, save  # shared style (moved from analysis/plots.py)
 
+from common.config import load_config
+
+CONFIG = Path(__file__).resolve().parents[2] / "config" / "training.json"
+
 def ema(values, alpha=0.05):
     out, acc = [], None
     for v in values:
@@ -73,10 +77,20 @@ def health(train, out):
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m train.plots")
-    parser.add_argument("run", nargs="?", type=Path)
+    parser.add_argument("run", nargs="?", type=Path, help="run folder")
+    parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
-    run = args.run or sorted(p for p in (Path(__file__).resolve().parents[3] / "runs").iterdir()
-                             if (p / "metrics.jsonl").exists())[-1]
+
+    if args.run:
+        run = args.run
+    else:
+        runs_dir = load_config(args.config, {}, ("outputDir", ))["outputDir"]
+        runs = sorted(p for p in runs_dir.glob("*") if (p / "metrics.jsonl").exists())
+
+        if not runs:
+            raise SystemExit(f"No runs with metrics.jsonl in {runs_dir}")
+        run = runs[-1]
+    
     train, val = load(run)
     out = run / "plots"
     out.mkdir(exist_ok=True)
