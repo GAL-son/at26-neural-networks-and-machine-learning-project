@@ -1,7 +1,7 @@
 # Configs
 JSON files read by the Python suite in `src/`. Relative paths are resolved **relative to the config file's directory**.
 
-## `train.json` (dataset and splits)
+## `dataset.json` (dataset and splits)
 | Key | Default | Meaning |
 |---|---|---|
 | `capturesDir` | `"../../data/captures"` | Folder with one sub-folder per captured scene (`<sceneFolder>_<objStem>/frame_*.exr`) |
@@ -13,7 +13,7 @@ Scenes are split as whole sequences, never by frame or patch. The split is decid
 ## `analysis.json`
 | Key | Default | Meaning |
 |---|---|---|
-| `dataset` | `"train.json"` | Dataset config to use |
+| `dataset` | `"dataset.json"` | Dataset config to use |
 | `scenes` | `"all"` | `"all"` (everything in `capturesDir`), `"train"` / `"val"` / `"test"`, or a list of folder names |
 | `stride` | 1 | Take a clip every `stride` frames |
 | `clip` | 1 | Consecutive frames per clip. Use ≥ 2 with `stride` > 1 to keep (t-1, t) pairs for `temporal` |

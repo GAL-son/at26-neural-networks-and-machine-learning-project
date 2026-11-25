@@ -22,7 +22,7 @@ from common.dataset import find_scenes, iter_frames
 from common.exr import load_frame
 
 def main():
-    dataset = load_dataset_config("config/train.json")
+    dataset = load_dataset_config("config/dataset.json")
     scenes = find_scenes(dataset["capturesDir"])     # {"sponza_sponza": {0: Path, 1: Path, ...}, ...}
 
 
@@ -73,6 +73,6 @@ Metrics in `residual` and `temporal` are computed on sRGB-encoded values (as dis
 2. `residual.baseline` is the score to beat. `regions` shows how much of the error the G-buffer can point at (`geometricEdges`).
    `patches.flatFraction` shows how many random patches would teach nothing.
 3. `temporal.category` and `motionPx` help balance the splits. `history.flickerRatio` > 1 means the input shimmers over time more than the GT does.
-   Scene groups in `train.json` keep related scenes in one split.
+   Scene groups in `dataset.json` keep related scenes in one split.
 
 

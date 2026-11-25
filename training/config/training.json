@@ -1,0 +1,47 @@
+{
+    "dataset": "dataset.json",
+    "outputDir": "../../reports/runs",
+    "device": "auto",
+    "seed": 0,
+    "data": {
+        "cropSize": 256,
+        "sequenceLength": 6,
+        "cropsPerFrame": 8,
+        "errorSampling": 0.8,
+        "minGeometry": 0.05,
+        "shuffleBuffer": 64,
+        "segmentLength": 16,
+        "workers": 6,
+        "flip": true
+    },
+    "loss": {
+        "l1": 1.0,
+        "ssim": 0.1,
+        "temporal": 0.5,
+        "firstStep": true,
+        "detachHistory": false
+    },
+    "optim": {
+        "lr": 3e-4,
+        "steps": 60000,
+        "warmup": 1000,
+        "batchSize": 8,
+        "amp": true,
+        "gradClip": 1.0
+    },
+    "val": {
+        "every": 2000,
+        "clipsPerScene": 2,
+        "clipLength": 8
+    },
+    "log": {
+        "every": 50,
+        "imagesEvery": 10000
+    },
+    "inputs": {
+        "depthScale": 0.35
+    },
+    "model": {
+        "channels" : [32, 36, 128, 236]
+    }
+}

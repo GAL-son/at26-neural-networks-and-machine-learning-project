@@ -1,0 +1,9 @@
+{
+    "capturesDir": "../../data/captures",
+    "expectedFrames": 600,
+    "splits": {
+        "train": ["bedroom_iscv2", "Exterior_exterior", "lost-empire_lost_empire", "sponza_sponza", "sponza_d_sponza", "gallery_gallery"],
+        "val": ["Interior_interior", "fireplace_room_fireplace_room"],
+        "test": ["San_Miguel_san-miguel", "living_room_living_room"]
+    }
+}
