@@ -1,0 +1,70 @@
+{
+    "checkpoint": "../../reports/runs/<ts>/checkpoints/best.pt",
+    "outputDir": "../../reports/explain",
+    "device": "auto",
+    "seed": 0,
+    "warmup": null,
+    "workers": 4,
+    "window": 384,
+    "layers": [
+        "enc1",
+        "enc2",
+        "enc3",
+        "enc4",
+        "dec3",
+        "dec2",
+        "dec1"
+    ],
+    "checkLayer": "dec2",
+    "deletion": {
+        "block": 8,
+        "steps": 20,
+        "randomOrders": 5,
+        "sigma": 2.0
+    },
+    "stability": {
+        "noise": 0.002,
+        "repeats": 3
+    },
+    "cases": [
+        {
+            "name": "typical-living-room",
+            "scene": "living_room_living_room",
+            "frame": 200,
+            "region": "max-input-error",
+            "size": 64,
+            "target": "correction"
+        },
+        {
+            "name": "typical-san-miguel",
+            "scene": "San_Miguel_san-miguel",
+            "frame": 150,
+            "region": "max-input-error",
+            "size": 64,
+            "target": "correction"
+        },
+        {
+            "name": "global-living-room",
+            "scene": "living_room_living_room",
+            "frame": 200,
+            "region": "hard-pixels",
+            "target": "correction"
+        },
+        {
+            "name": "hard-san-miguel",
+            "scene": "San_Miguel_san-miguel",
+            "frame": 400,
+            "region": "max-output-error",
+            "size": 64,
+            "target": "error"
+        },
+        {
+            "name": "failure-living-room-dip",
+            "scene": "living_room_living_room",
+            "frame": 420,
+            "region": "max-output-error",
+            "size": 64,
+            "target": "error"
+        }
+    ]
+}

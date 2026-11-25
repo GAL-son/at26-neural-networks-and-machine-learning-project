@@ -1,2 +1,4 @@
+from explain.runner import main
+
 if __name__ == "__main__":
-    raise SystemExit(0)
+    raise SystemExit(main())
